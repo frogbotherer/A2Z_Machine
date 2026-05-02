@@ -39,8 +39,7 @@
 
 #include <Arduino.h>
 #include <SPI.h>
-#include <SdFat.h>
-#include <Adafruit_SPIFlash.h>
+#include <SD.h>
 #include <mcurses.h>
 extern int theme;
 
@@ -811,15 +810,13 @@ void z_push( zword_t );
 
 /* Arduino stuff */
 
-#define LEDPIN 13
 #define USE_MCURSES_H
-#define GAMEPATH "/stories"
-#define SAVEPATH "/saves"
-//#define FILE_CREATE (FA_READ | FA_WRITE | FA_CREATE_ALWAYS)
-#define FILE_CREATE (FILE_READ | FILE_WRITE)
+#define GAMEPATH "/atoz/stories"
+#define SAVEPATH "/atoz/saves"
+#define FILE_CREATE FILE_WRITE
 #define STATUS_ATTR (F_WHITE | B_BLUE | A_BOLD)
 #define TEXT_ATTR (F_GREEN | B_BLACK)
-void Blink(byte, byte, byte);
+#define erase clear
 
 typedef struct ztheme
 {

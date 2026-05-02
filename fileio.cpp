@@ -32,13 +32,9 @@
  */
 
 #include <SPI.h>
-#include <Adafruit_SPIFlash.h>
-#include <Adafruit_SPIFlash_FatFs.h>
-
+#include <SD.h>
 #include "ztypes.h"
 #include "jzexe.h"              /* mol 951115 */
-
-extern Adafruit_M0_Express_CircuitPython spiffs;
 
 /* Static data */
 
@@ -47,11 +43,11 @@ extern int GLOBALVER;
 #ifdef USE_ZLIB
 static gzFile *gfp = NULL;      /* Zcode file pointer */
 #else
-static Adafruit_SPIFlash_FAT::File gfp;        /* Zcode file pointer */
+static File gfp;        /* Zcode file pointer */
 #endif
 
-static Adafruit_SPIFlash_FAT::File sfp;        /* Script file pointer */
-static Adafruit_SPIFlash_FAT::File rfp;        /* Record file pointer */
+static File sfp;        /* Script file pointer */
+static File rfp;        /* Record file pointer */
 
 #if defined BUFFER_FILES        
 #ifndef USE_ZLIB
@@ -209,10 +205,10 @@ void open_story( const char *storyname )
    }
 
    strcpy( tmp, storyname );  
-   if(spiffs.exists(tmp))
+   if(SD.exists(tmp))
   {
       //Serial.println(String(tmp) + String(" exists"));
-      gfp = spiffs.open( tmp, FILE_READ);                            
+      gfp = SD.open( tmp, FILE_READ);                            
 #if defined BUFFER_FILES        
 #ifndef USE_ZLIB
       setbuf( gfp, gfpbuffer ); 
@@ -225,10 +221,10 @@ void open_story( const char *storyname )
 
 // assume Zcode file is in root folder for Arduino
       sprintf( tmp, "\\%s", storyname );
-      if (spiffs.exists(tmp))
+      if (SD.exists(tmp))
       {
         Serial.println(String(tmp) + String(" exists"));
-        gfp = spiffs.open( tmp, FILE_READ);                            
+        gfp = SD.open( tmp, FILE_READ);                            
 #if defined BUFFER_FILES        
 #ifndef USE_ZLIB
          setbuf( gfp, gfpbuffer ); 
@@ -306,7 +302,7 @@ void read_page( int page, void *buffer )
 #ifdef USE_ZLIB
    if ( gzread( gfp, buffer, PAGE_SIZE ) == -1 )
 #else
-   if ( gfp.read( buffer, PAGE_SIZE) == -1)
+   if ( gfp.read((uint8_t*) buffer, PAGE_SIZE) == -1)
 #endif
    {
       //Serial.println("Debug read_page() 3");
@@ -327,7 +323,7 @@ void read_page( int page, void *buffer )
 #ifdef USE_ZLIB
          if ( gzread( gfp, buffer, offset ) == -1 )
 #else
-         if (gfp.read( buffer, offset) == -1)
+         if (gfp.read((uint8_t*) buffer, offset) == -1)
 #endif
          {
             fatal( "read_page(): Zcode file read error" );
@@ -337,7 +333,7 @@ void read_page( int page, void *buffer )
    //Serial.println("done read_page()");
 }                               /* read_page */
 
-void read_page_old( int page, void *buffer )
+void read_page_old( int page, uint8_t *buffer )
 {
    //Serial.print("read_page(");Serial.print(page);Serial.println(")");
    unsigned long file_size;
@@ -542,7 +538,7 @@ int z_save( int argc, zword_t table, zword_t bytes, zword_t name )
 {
    char new_name[Z_FILENAME_MAX + Z_PATHNAME_MAX + 1];
    char default_name[Z_FILENAME_MAX + Z_PATHNAME_MAX + 1];
-   Adafruit_SPIFlash_FAT::File afp;
+   File afp;
 
 #if defined BUFFER_FILES        
    char afpbuffer[BUFSIZ];      
@@ -557,7 +553,7 @@ int z_save( int argc, zword_t table, zword_t bytes, zword_t name )
          goto finished;
       }
       strcpy(new_name, String(String(SAVEPATH) + String("/") + String(new_name)).c_str());
-      afp = spiffs.open( new_name, FILE_CREATE );
+      afp = SD.open( new_name, FILE_CREATE );
       if (!afp)
       {
          goto finished;
@@ -567,7 +563,7 @@ int z_save( int argc, zword_t table, zword_t bytes, zword_t name )
       setbuf( afp, afpbuffer ); 
 #endif 
 
-      status = afp.write( datap + table, bytes);
+      status = afp.write(datap + table, bytes);
 
       afp.close();
 
@@ -629,7 +625,7 @@ int z_restore( int argc, zword_t table, zword_t bytes, zword_t name )
 {
    char new_name[Z_FILENAME_MAX + Z_PATHNAME_MAX + 1];
    char default_name[Z_FILENAME_MAX + Z_PATHNAME_MAX + 1];
-   Adafruit_SPIFlash_FAT::File afp;
+   File afp;
 
 #if defined BUFFER_FILES        
    char afpbuffer[BUFSIZ];      
@@ -647,7 +643,7 @@ int z_restore( int argc, zword_t table, zword_t bytes, zword_t name )
       }
       // include save path in file name (for Arduino)
       strcpy(new_name, String(String(SAVEPATH) + String("/") + String(new_name)).c_str());
-      afp = spiffs.open( new_name, FILE_READ );
+      afp = SD.open( new_name, FILE_READ );
       if (afp)
       {
          goto finished;
@@ -815,7 +811,7 @@ void swap_bytes( zword_t * ptr, int len )
 
 static int save_restore( const char *file_name, int flag )
 {
-   Adafruit_SPIFlash_FAT::File tfp;
+   File tfp;
 
 #if defined BUFFER_FILES        
    char tfpbuffer[BUFSIZ];      
@@ -839,13 +835,12 @@ static int save_restore( const char *file_name, int flag )
    if ( flag == GAME_SAVE || flag == GAME_RESTORE )
    {
       //tfp = spiffs.open( file_name, ( flag == GAME_SAVE ) ? FILE_CREATE : FILE_READ );
-      tfp = spiffs.open( String(String(SAVEPATH) + String("/") + String(file_name)).c_str(), ( flag == GAME_SAVE ) ? FILE_CREATE : FILE_READ );
+      tfp = SD.open( String(String(SAVEPATH) + String("/") + String(file_name)).c_str(), ( flag == GAME_SAVE ) ? FILE_CREATE : FILE_READ );
       if (!tfp)
       {
          output_line( "Cannot open SAVE file" );
          return ( 1 );
       }
-      digitalWrite(LEDPIN,HIGH); // LED on while read/writing save file
 #if defined BUFFER_FILES        
       setbuf( tfp, tfpbuffer ); 
 #endif 
@@ -983,7 +978,6 @@ static int save_restore( const char *file_name, int flag )
          output_line("Read from SAVE file failed");
       }
    }
-   digitalWrite(LEDPIN,LOW); // LED on while read/writing save file
 
    return ( status );
 
@@ -1005,7 +999,7 @@ void open_script( void )
    {
       if ( script_file_valid == TRUE )
       {
-         sfp = spiffs.open( script_name, FILE_CREATE );
+         sfp = SD.open( script_name, FILE_CREATE );
 
          /* Turn on scripting if open succeeded */
          if ( sfp )
@@ -1025,7 +1019,7 @@ void open_script( void )
          if ( get_file_name( new_script_name, script_name, GAME_SCRIPT ) == 0 )
          {
             /* Open scripting file */
-            sfp = spiffs.open( new_script_name, FILE_CREATE );
+            sfp = SD.open( new_script_name, FILE_CREATE );
 
             /* Turn on scripting if open succeeded */
             if ( sfp )
@@ -1222,7 +1216,7 @@ void open_record( void )
       if ( get_file_name( new_record_name, record_name, GAME_RECORD ) == 0 )
       {
          /* Open recording file */
-         rfp = spiffs.open( new_record_name, FILE_CREATE);
+         rfp = SD.open( new_record_name, FILE_CREATE);
 
          /* Turn on recording if open succeeded */
          if ( rfp )
@@ -1258,8 +1252,8 @@ void record_line( const char *s )
    {
       /* Write string */
       //fprintf( rfp, "%s\n", s );
-      rfp.write(s, strlen(s));
-      rfp.write("\n", 1);
+      rfp.write((const uint8_t*) s, strlen(s));
+      rfp.write((const uint8_t*) "\n", 1);
    }
 
 }                               /* record_line */
@@ -1279,7 +1273,7 @@ void record_key( int c )
       /* Write the key */
       //fprintf( rfp, "<%0o>\n", c );
       sprintf(buff,"<%0o>\n", c );
-      rfp.write(buff,strlen(buff));
+      rfp.write((uint8_t*) buff,strlen(buff));
    }
 
 }                               /* record_key */
@@ -1297,7 +1291,7 @@ void close_record( void )
    if ( rfp != NULL )
    {
       rfp.close();
-      rfp = NULL;
+      //rfp = NULL;
 
       /* Cleanup */
 
@@ -1343,7 +1337,7 @@ void z_input_stream( int arg )
       if ( get_file_name( new_record_name, record_name, GAME_PLAYBACK ) == 0 )
       {
          /* Open recording file */
-         rfp = spiffs.open( new_record_name, FILE_READ );
+         rfp = SD.open( new_record_name, FILE_READ );
 
          /* Turn on recording if open succeeded */
          if ( rfp != NULL )
@@ -1382,7 +1376,7 @@ int playback_line( int buflen, char *buffer, int *read_size )
       return ( -1 );
    }
 
-   if ( rfp.read( buffer, buflen) == 0 )
+   if ( rfp.read((uint8_t*) buffer, buflen) == 0 )
    {
       close_record(  );
       return ( -1 );

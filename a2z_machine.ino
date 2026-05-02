@@ -5,6 +5,7 @@
  * 
  */
 #include <SPI.h>
+#include <SD.h>
 #include <mcurses.h>
 #include "ztypes.h"
 
@@ -52,7 +53,7 @@ void filesort(char **a, int size) {
     }
 }
 
-char **getDirectory(Adafruit_SPIFlash_FAT::File dir)
+char **getDirectory(File dir)
 {
   static char filebuff[MAXFILELIST*32];
   char *filebuffptr = filebuff;
@@ -71,7 +72,7 @@ char **getDirectory(Adafruit_SPIFlash_FAT::File dir)
   }
   while (true)
   {
-    Adafruit_SPIFlash_FAT::File entry = dir.openNextFile();
+    File entry = dir.openNextFile();
     if (! entry)
     {
       break;
@@ -97,10 +98,10 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
 {
   //int themecount = sizeof(themes)/sizeof(themes[0]);
   attrset(themes[theme].text_attr);
-  erase(  );
+  erase();
   // top line
   attrset(themes[theme].status_attr);
-  int     col;
+  int col;
   move(0,0);
   for (col = 0; col < COLS; col++)
   {
@@ -149,7 +150,8 @@ static bool showA2ZScreen(int &storynum)
   curs_set(0);
 
   int x = 0, y = 0, count = 0;
-  storyfilelist = getDirectory(spiffs.open(GAMEPATH));
+  // TODO create missing dirs
+  storyfilelist = getDirectory(SD.open(GAMEPATH));
   while(storyfilelist[count] != NULL && count < MAXFILELIST)
   {
     yield();
@@ -410,9 +412,17 @@ static void configure( zbyte_t min_version, zbyte_t max_version )
 
 }
 
+#define SD_SPI_SCK_PIN  40
+#define SD_SPI_MISO_PIN 39
+#define SD_SPI_MOSI_PIN 14
+#define SD_SPI_CS_PIN   12
+
 void setup()
 {
   Serial.begin(115200);
+  // init sd card -- from the example
+  SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
+  SD.begin(SD_SPI_CS_PIN, SPI, 25000000);
 }
 
 void loop()

@@ -83,7 +83,7 @@ char Arduino_getchar()
   return Serial.read();
 }
 
-static int inc( uint32_t timeout = 0 )
+int inc( uint32_t timeout = 0, bool dummy = false )
 {
    uint32_t timer = millis();
    while(!Serial.available() && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))){yield();};

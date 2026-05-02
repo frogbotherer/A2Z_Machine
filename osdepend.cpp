@@ -87,7 +87,7 @@ static int strictz_error_count[STRICTZ_NUM_ERRORS];
 /* getopt linkages */
 
 extern int optind;
-extern const char *optarg;
+//extern const char *optarg;
 extern ZINT16 default_fg, default_bg;
 
 #endif /* !defined(AMIGA) */
@@ -558,10 +558,6 @@ void fatal( const char *s )
    char strbuff[512];
    sprintf(strbuff, "\n**FATAL ERROR: %s", s);
    Serial.println(strbuff);
-   while(1)
-   {
-    Blink(LEDPIN,100,20);
-   }
 }                               /* fatal */
 
 #endif /* !defined(AMIGA) */
