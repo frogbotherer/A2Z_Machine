@@ -6,7 +6,7 @@
 #include "ztypes.h"
 
 #include <mcurses.h>
-
+#include <M5Cardputer.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -72,33 +72,81 @@ extern ZINT16 default_bg;
 static void display_string( char * );
 static int read_char( int timeout );
 
+LGFX_Sprite *canvas;
+static uint8_t vtbuf[16]; // for ansi escapes
+static uint8_t *vtbufp;
+void Arduino_init()
+{
+  canvas = new LGFX_Sprite(&M5Cardputer.Display);
+  canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
+  canvas->setTextScroll(false);
+
+  vtbuf[0] = 0;
+  vtbufp = vtbuf;
+}
+
 void Arduino_putchar(uint8_t c)
 {
+  if(c == '\033')
+  {
+    // start of esc seq
+    vtbuf[0] = c;
+    vtbufp = vtbuf;
+  }
+  else if(vtbuf[0] == '\033')
+  {
+    if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || *vtbufp == ')' || *vtbufp == '(')
+    {
+      // end of escape, handle it
+      vtbuf[0] = 0;
+    }
+    else
+    {
+      // continued escape
+      vtbufp ++;
+      *vtbufp = c;
+    }
+  }
+  else
+  {
+    canvas->print((char) c);
+    canvas->pushSprite(0,0);
+  }
   Serial.write(c);
 }
 
 char Arduino_getchar()
 {
-  while (!Serial.available()){yield();};
-  return Serial.read();
+  M5Cardputer.update();
+  while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()) { yield(); };
+  Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
+
+  return s.word[0];
+  //while (!Serial.available()){yield();};
+  //return Serial.read();
 }
 
 int inc( uint32_t timeout = 0, bool dummy = false )
 {
    uint32_t timer = millis();
-   while(!Serial.available() && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))){yield();};
+   // while(!Serial.available() && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))){yield();};
+   while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed() && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))) {yield();};
    if(timeout > 0 && ((timer + timeout*100) <= millis()))
     return -1;
 
-   int c = Serial.read();
+   Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
+   /* int c = Serial.read();
    if ( c == -1 )
    {
       fatal("acursesio inc: error in Serial.read!");
-   }
-   if((int) c != 127) // is this a backspace key? will print it later
-    Serial.write(c);
+   }*/
+   uint8_t c = s.word[0];
+   if(c != 127) // is this a backspace key? will print it later
+     Arduino_putchar(c);
+     // Serial.write(c);
    if(c == '\r')
-     Serial.write('\n');
+     Arduino_putchar('\n');
+     // Serial.write('\n');
    return c;
 }
 
@@ -110,7 +158,8 @@ static int uninc( int c )
 
 static int outc( int c )
 {
-   Serial.print(String((char) c));
+   // Serial.print(String((char) c));
+   Arduino_putchar((uint8_t) c);
    return c;
 }
 
@@ -125,7 +174,7 @@ void initialize_screen(  )
    cmbufp = cmbuf;
 
    /* start the curses environment */
-   if ( !initscr(  ) )
+   if ( initscr(  ) )
    {
       fatal( "initialize_screen(): Couldn't init curses." );
    }

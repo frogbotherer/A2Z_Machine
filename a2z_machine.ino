@@ -7,6 +7,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <mcurses.h>
+#include <M5Cardputer.h>
 #include "ztypes.h"
 
 #define A2Z_VERSION "3.1"
@@ -18,6 +19,8 @@ extern ztheme_t themes[];
 extern int themecount;
 
 int theme = 2; // default theme
+
+LGFX_Sprite *tcanvas;
 
 // sort an array of filenames
 void filesort(char **a, int size) {
@@ -53,15 +56,19 @@ void filesort(char **a, int size) {
     }
 }
 
-char **getDirectory(File dir)
+char **getDirectory(File &dir)
 {
   static char filebuff[MAXFILELIST*32];
   char *filebuffptr = filebuff;
   static char* dirlist[MAXFILELIST]; // max file list size
   int dirlistcount = 0;
-
+  tcanvas->println(String("getDirectory(): looking in " + String(dir.name())).c_str());
+  tcanvas->pushSprite(0,0);
+  
   if(!dir.isDirectory())
   {
+    tcanvas->println(String("getDirectory(): not a valid folder / " + String(dir.name())).c_str());
+    tcanvas->pushSprite(0,0);
     fatal(String("getDirectory(): not a valid folder / " + String(dir.name())).c_str());
   }
 
@@ -88,14 +95,18 @@ char **getDirectory(File dir)
           break;
         }
     }
-    entry.close();
+    //entry.close();
   }
+  tcanvas->println("got file list");
+  tcanvas->pushSprite(0,0);
    filesort(dirlist,dirlistcount);
    return dirlist;
 }
 
 void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
 {
+  tcanvas->println("INFO: displayA2ZScreen()");
+  tcanvas->pushSprite(0,0);
   //int themecount = sizeof(themes)/sizeof(themes[0]);
   attrset(themes[theme].text_attr);
   erase();
@@ -141,8 +152,11 @@ static bool showA2ZScreen(int &storynum)
   char filenames[MAXFILELIST][20];
   //int themecount = sizeof(themes)/sizeof(themes[0]);
 
-  if ( !initscr(  ) )
+  if ( initscr(  ) )
   {
+    tcanvas->println("curses failed");
+    tcanvas->pushSprite(0,0);
+
     fatal( "initialize_screen(): Couldn't init curses." );
   }
   setFunction_putchar(Arduino_putchar); // tell the library which output channel shall be used
@@ -150,8 +164,21 @@ static bool showA2ZScreen(int &storynum)
   curs_set(0);
 
   int x = 0, y = 0, count = 0;
-  // TODO create missing dirs
-  storyfilelist = getDirectory(SD.open(GAMEPATH));
+
+  tcanvas->println("INFO: getting stories from SD");
+  tcanvas->pushSprite(0,0);
+
+  File d = SD.open(APPLPATH);
+  if(d)
+  {
+    storyfilelist = getDirectory(d);
+    tcanvas->println("INFO: got list from SD");
+  }
+  else
+  {
+    tcanvas->println("WARN: couldn't open GAMEDIR");
+  }
+  tcanvas->pushSprite(0,0);
   while(storyfilelist[count] != NULL && count < MAXFILELIST)
   {
     yield();
@@ -188,6 +215,7 @@ static bool showA2ZScreen(int &storynum)
   }
   displayA2ZScreen(filenames, count, storynum);
 
+  /*
   if(count == 0)
   {
     Serial.print("No stories found [press any key to try again]");
@@ -195,7 +223,8 @@ static bool showA2ZScreen(int &storynum)
     Serial.read();
     Serial.println();
     return false;
-  }
+  } */
+  tcanvas->println("INFO: trying to do clever stuff");
   while(1)
   {
     #define SHIFTTAB 514
@@ -412,21 +441,55 @@ static void configure( zbyte_t min_version, zbyte_t max_version )
 
 }
 
+static bool init_sd_dirs()
+{
+  File adir = SD.open(APPLPATH);
+  if(!adir)
+  {
+    SD.mkdir(APPLPATH);
+    SD.mkdir(GAMEPATH);
+    SD.mkdir(SAVEPATH);
+  }
+  return true;
+}
+
 #define SD_SPI_SCK_PIN  40
 #define SD_SPI_MISO_PIN 39
 #define SD_SPI_MOSI_PIN 14
 #define SD_SPI_CS_PIN   12
 
+
 void setup()
 {
+  // init cardputer
+  auto cfg = M5.config();
+  M5Cardputer.begin(cfg, true);  // enableKeyboard
+
+  // init serial
   Serial.begin(115200);
+
   // init sd card -- from the example
   SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
   SD.begin(SD_SPI_CS_PIN, SPI, 25000000);
+
+  // init sd directories
+  init_sd_dirs();
+
+  M5Cardputer.Display.setRotation(1);
+  M5Cardputer.Display.setTextFont(&fonts::FreeMono9pt7b);
+
+  // debugging purposes
+  tcanvas = new LGFX_Sprite(&M5Cardputer.Display);
+  tcanvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
+  tcanvas->setTextScroll(false);
+
+  Arduino_init();
 }
 
 void loop()
 {
+  tcanvas->println("cwwozere");
+  tcanvas->pushSprite(0,0);
   static int storynum = 0;
   // This loops once per game
   while(!showA2ZScreen(storynum));

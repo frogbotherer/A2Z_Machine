@@ -570,6 +570,7 @@ void report_strictz_error( int, const char * );
 /* acursesio.cpp */
 void Arduino_putchar(uint8_t c);
 char Arduino_getchar();
+void Arduino_init();
 
 /* control.c */
 
@@ -811,6 +812,7 @@ void z_push( zword_t );
 /* Arduino stuff */
 
 #define USE_MCURSES_H
+#define APPLPATH "/atoz"
 #define GAMEPATH "/atoz/stories"
 #define SAVEPATH "/atoz/saves"
 #define FILE_CREATE FILE_WRITE
