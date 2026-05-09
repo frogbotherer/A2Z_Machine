@@ -71,65 +71,154 @@ extern ZINT16 default_bg;
 static void display_string( char * );
 static int read_char( int timeout );
 
-#define VTSCALING 0.66
+#define VTSCALING 1.0
 LGFX_Sprite *canvas;
 static uint8_t vtbuf[16]; // for ansi escapes
 static uint8_t *vtbufp;
-static uint32_t vtcurs[2];
+static uint32_t vtcurs[4];
 static uint8_t vtcharsz[2];
+uint16_t vtflags;
 
 void Arduino_init()
 {
   canvas = new LGFX_Sprite(&M5Cardputer.Display);
   canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
-  canvas->setFont(&fonts::FreeMono9pt7b);
-  canvas->setTextSize(VTSCALING);
+  //canvas->setFont(&fonts::FreeMono9pt7b);
+  //canvas->setTextSize(VTSCALING);
   vtcharsz[0] = canvas->textWidth("M");
   vtcharsz[1] = canvas->fontHeight();
   vtbuf[0] = 0;
   vtbufp = vtbuf;
-  vtcurs[0] = 1;
-  vtcurs[1] = 1;
+  vtcurs[0] = 1; // x
+  vtcurs[1] = 1; // y
+  vtcurs[2] = TFT_WHITE; // fg
+  vtcurs[3] = TFT_BLACK; // bg
+  vtflags = 0x0;
 }
 
 bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
 {
+  int i = 0, j = 0;
   switch(buf[1])
   {
     case '[': // CSI
       switch(cmd)
       {
-	case 'J':
-	  if(buf[2] == '2')
-	  {
+        case 'H':
+        case 'f':
+	        // move
+          vtcurs[1] = buf[2] - 48;
+          if(buf[3] != ';')
+          {
+            vtcurs[1] = vtcurs[1]*10 + buf[3] - 48;
+            i = 1;
+          }
+          vtcurs[0] = buf[4+i] - 48;
+          if(buf[5+i] != 'H' && buf[5+i] != 'f')
+          {
+            vtcurs[0] = vtcurs[0]*10 + buf[5+i] - 48;
+          }
+	        //vtcurs[0]=1;
+          return true;
+        case 'J':
+          if(buf[2] == '2')
+          {
             // clear screen
-	    canvas->deleteSprite();
-	    Arduino_init();
-	    return true;
-	  }
-	  else
-	  {
+            canvas->deleteSprite();
+            Arduino_init();
+            return true;
+          }
+          else
+          {
             // clear to bottom
             return false;
-	  }
-	  break;
-	case 'H':
-	case 'f':
-	  // move
-	  int i = 0;
-	  vtcurs[1] = buf[2] - 48;
-	  if(buf[3] != ';')
-	  {
-            vtcurs[1] = vtcurs[1]*10 + buf[3] - 48;
-	    i = 1;
-	  }
-	  vtcurs[0] = buf[4+i] - 48;
-	  if(buf[5+i] != 'H' && buf[5+i] != 'f')
-	  {
-            vtcurs[0] = vtcurs[0]*10 + buf[5+i] - 48;
-	  }
-	  vtcurs[0]=1;
-	  return true;
+          }
+          break;
+        case 'm':
+          for(i=2; i<16; i++)
+          {
+            if(buf[i] == ';' || buf[i] == 'm')
+            {
+              switch(j)
+              {
+                case 7:
+                  vtflags |= 0x2;
+                  break;
+                case 27:
+                  vtflags &= (0xffff ^ 0x2);
+                  break;
+                case 30:
+                  vtcurs[2] = TFT_BLACK;
+                  break;
+                case 31:
+                  vtcurs[2] = TFT_RED;
+                  break;
+                case 32:
+                  vtcurs[2] = TFT_GREEN;
+                  break;
+                case 33:
+                  vtcurs[2] = TFT_YELLOW;
+                  break;
+                case 34:
+                  vtcurs[2] = TFT_BLUE;
+                  break;
+                case 35:
+                  vtcurs[2] = TFT_MAGENTA;
+                  break;
+                case 36:
+                  vtcurs[2] = TFT_CYAN;
+                  break;
+                case 37:
+                  vtcurs[2] = TFT_WHITE;
+                  break;
+                case 39:
+                  // default
+                  vtcurs[2] = TFT_WHITE;
+                  break;
+                case 40:
+                  vtcurs[3] = TFT_BLACK;
+                  break;
+                case 41:
+                  vtcurs[3] = TFT_RED;
+                  break;
+                case 42:
+                  vtcurs[3] = TFT_GREEN;
+                  break;
+                case 43:
+                  vtcurs[3] = TFT_YELLOW;
+                  break;
+                case 44:
+                  vtcurs[3] = TFT_BLUE;
+                  break;
+                case 45:
+                  vtcurs[3] = TFT_MAGENTA;
+                  break;
+                case 46:
+                  vtcurs[3] = TFT_CYAN;
+                  break;
+                case 47:
+                  vtcurs[3] = TFT_WHITE;
+                  break;
+                case 49:
+                  // default
+                  vtcurs[3] = TFT_BLACK;
+                  break;
+                default:
+                  Arduino_putchar((uint8_t) j+48);
+              }
+              j = 0;
+              if(buf[i] == 'm') break;
+            }
+            else if(j == 0)
+            {
+              j = buf[i] - 48;
+            }
+            else
+            {
+              j = j * 10 + buf[i] - 48;
+            }
+          }
+          return false;
       }
       break;
   }
@@ -162,7 +251,15 @@ void Arduino_putchar(uint8_t c)
   }
   else
   {
-    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1])*vtcharsz[1], c, TFT_CYAN, TFT_RED, VTSCALING);
+    uint8_t bg = 3;
+    uint8_t fg = 2;
+    if((vtflags & 0x2) == 0x2)
+    {
+      // inverse video
+      bg = 2;
+      fg = 3;
+    }
+    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1])*vtcharsz[1], c, vtcurs[bg], vtcurs[fg], VTSCALING);
     canvas->pushSprite(0,0);
     vtcurs[0] ++;
     if(c == '\r' || c == '\n')
@@ -171,18 +268,28 @@ void Arduino_putchar(uint8_t c)
       vtcurs[1] ++;
     }
   }
-  //Serial.write(c);
 }
 
 char Arduino_getchar()
 {
-  M5Cardputer.update();
-  while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()) { yield(); };
+  while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()) {
+    yield();
+    M5Cardputer.update();
+  };
   Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
 
-  return s.word[0];
-  //while (!Serial.available()){yield();};
-  //return Serial.read();
+  if(s.enter)
+  {
+    return '\n';
+  }
+  else if(s.tab)
+  {
+    return '\t';
+  }
+  // TODO backspace, cursor keys
+  char ret = s.word[0];
+  s.word.clear();
+  return ret;
 }
 
 int inc( uint32_t timeout = 0, bool dummy = false )

@@ -127,7 +127,7 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   mvaddstr_P ( 3, 1, "Select a game to play:");
   yield();
   //                                 1234567891123456789212345678931234567894
-  mvaddstr_P ( DEFAULT_ROWS - 2, 1, "SELECT: <cursor>+<enter>|THEME: /");
+  mvaddstr_P ( DEFAULT_ROWS - 2, 1, "SELECT: <cursor>+<enter> | THEME: t");
   yield();
   mvaddstr_P ( DEFAULT_ROWS - 1, 1, "See: https://DanTheGeek.com/a2zmachine");
   yield();
@@ -137,15 +137,15 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   {
     if(i == storynum)
       attrset(themes[theme].status_attr);      
-    int x = i % 5;
-    int y = i / 5;
+    int x = i % 2;
+    int y = i / 2;
     mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[i]) + String(" ")).c_str() );
     yield();
     if(i == storynum)
       attrset(themes[theme].text_attr);
   }
 
-  move(7+(count/5),1);
+  move(7+(count/2),1);
 }
 
 static bool showA2ZScreen(int &storynum)
@@ -169,7 +169,7 @@ static bool showA2ZScreen(int &storynum)
   tcanvas->println("INFO: getting stories from SD");
   tcanvas->pushSprite(0,0);
 
-  File d = SD.open(APPLPATH);
+  File d = SD.open(GAMEPATH);
   if(d)
   {
     storyfilelist = getDirectory(d);
@@ -206,12 +206,10 @@ static bool showA2ZScreen(int &storynum)
       if(strlen(shortname) <= i)
         paddedname[i] = ' ';
       else
-        //paddedname[i] = 'a';
         paddedname[i] = shortname[i];
    }
     paddedname[14] = '\0';
     strcpy(filenames[count], paddedname);
-    //Serial.println(filenames[count]);
     count++;
   }
   displayA2ZScreen(filenames, count, storynum);
@@ -225,128 +223,89 @@ static bool showA2ZScreen(int &storynum)
     Serial.println();
     return false;
   } */
-  tcanvas->println("INFO: trying to do clever stuff");
+  //tcanvas->println("INFO: trying to do clever stuff");
   while(1)
   {
-    #define SHIFTTAB 514
-    #define CURSORUP 515
-    #define CURSORDOWN 516
-    #define CURSORRIGHT 517
-    #define CURSORLEFT 518
-    #define FUNCTION1  519
-    int keystroke, escape1, escape2;
-    keystroke = Arduino_getchar();
-    if(keystroke == 0x1b)
-    {
-      escape1 = Arduino_getchar();
-      escape2 = Arduino_getchar();
-      //Serial.print("got ");Serial.println(escape1,HEX);
-      //Serial.print("got ");Serial.println(escape2,HEX);
-      if(escape1 == '[')
-      {
-        switch(escape2)
-        {
-          case 'A': //
-            keystroke = CURSORUP;
-            break;
-          case 'B':
-            keystroke = CURSORDOWN;
-            break;
-          case 'C':
-            keystroke = CURSORRIGHT;
-            break;
-          case 'D':
-            keystroke = CURSORLEFT;
-            break;
-          case 'Z':
-            keystroke = SHIFTTAB;
-            break;
-          case '1':
-            keystroke = FUNCTION1;
-        }
-      }
-    }
+    int keystroke = Arduino_getchar();
     move(7+(count/5),1);
-    //Serial.print(" got ");Serial.println(keystroke,HEX);
     yield();
     switch(keystroke)
     {
-      case '\t': // tab
-      case CURSORRIGHT:
-       x = storynum % 5;
-       y = storynum / 5;
+      case '/':
+       x = storynum % 2;
+       y = storynum / 2;
        attrset(themes[theme].text_attr);
        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
        yield();
        storynum = (storynum+1)%count;
-       x = storynum % 5;
-       y = storynum / 5;
+       x = storynum % 2;
+       y = storynum / 2;
        attrset(themes[theme].status_attr);      
        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
        attrset(themes[theme].text_attr);
-       move(7+(count/5),1);
+       move(7+(count/2),1);
        break;
-      case SHIFTTAB:
-      case CURSORLEFT:
-       x = storynum % 5;
-       y = storynum / 5;
+      case ',':
+       x = storynum % 2;
+       y = storynum / 2;
        attrset(themes[theme].text_attr);
        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
        storynum = (storynum-1)%count;
        if(storynum < 0)
         storynum = count - 1;
-       x = storynum % 5;
-       y = storynum / 5;
+       x = storynum % 2;
+       y = storynum / 2;
        attrset(themes[theme].status_attr);      
        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
        attrset(themes[theme].text_attr);
-       move(7+(count/5),1);
+       move(7+(count/2),1);
        break;
-      case CURSORUP:
-       x = storynum % 5;
-       y = storynum / 5;
+      case ';':
+       x = storynum % 2;
+       y = storynum / 2;
        attrset(themes[theme].text_attr);
        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       if(storynum - 5 >= 0)
+       if(storynum - 2 >= 0)
        {
-        storynum = (storynum-5)%count;
+        storynum = (storynum-2)%count;
        }
        else
        {
-        storynum = count - (count)%5 + (storynum-1)%count;
+        storynum = count - (count)%2 + (storynum-1)%count;
         if(storynum >= count)
-          storynum -= 5;
+          storynum -= 2;
        }
-       x = storynum % 5;
-       y = storynum / 5;
+       x = storynum % 2;
+       y = storynum / 2;
        attrset(themes[theme].status_attr);      
        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
        attrset(themes[theme].text_attr);
-       move(7+(count/5),1);
+       move(7+(count/2),1);
        break;
-      case CURSORDOWN:
-       x = storynum % 5;
-       y = storynum / 5;
+      case '.':
+       x = storynum % 2;
+       y = storynum / 2;
        attrset(themes[theme].text_attr);
        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       if(storynum + 5 < count)
-        storynum = (storynum+5)%count;
+       if(storynum + 2 < count)
+        storynum = (storynum+2)%count;
        else
-       x = storynum % 5;
-       y = storynum / 5;
+       x = storynum % 2;
+       y = storynum / 2;
        attrset(themes[theme].status_attr);      
        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
        attrset(themes[theme].text_attr);
-       move(7+(count/5),1);
+       move(7+(count/2),1);
        break;
-      case '/': // change theme
+      case 't': // change theme
         theme = (theme + 1 ) %themecount;
        displayA2ZScreen(filenames, count, storynum);
        break;
       case '\r': // return
+      case '\n':
         curs_set(1);
         return true;
-      case FUNCTION1: // refresh
+      case 'r': // refresh
         return false;
         break;
       default: // first letter of filename?
@@ -356,17 +315,17 @@ static bool showA2ZScreen(int &storynum)
           {
             if(tolower(*filenames[(storynum+i)%count]) == tolower(keystroke))
             {
-             x = storynum % 5;
-             y = storynum / 5;
+             x = storynum % 2;
+             y = storynum / 2;
              attrset(themes[theme].text_attr);
              mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
              storynum = (storynum+i)%count;
-             x = storynum % 5;
-             y = storynum / 5;
+             x = storynum % 2;
+             y = storynum / 2;
              attrset(themes[theme].status_attr);      
              mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
              attrset(themes[theme].text_attr);
-             move(7+(count/5),1);
+             move(7+(count/2),1);
              break;
             }
           }
