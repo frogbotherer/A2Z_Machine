@@ -7,7 +7,6 @@
 
 #include <mcurses.h>
 #include <M5Cardputer.h>
-#include <signal.h>
 #include <sys/types.h>
 #include <sys/time.h>
 
@@ -72,17 +71,69 @@ extern ZINT16 default_bg;
 static void display_string( char * );
 static int read_char( int timeout );
 
+#define VTSCALING 0.66
 LGFX_Sprite *canvas;
 static uint8_t vtbuf[16]; // for ansi escapes
 static uint8_t *vtbufp;
+static uint32_t vtcurs[2];
+static uint8_t vtcharsz[2];
+
 void Arduino_init()
 {
   canvas = new LGFX_Sprite(&M5Cardputer.Display);
   canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
-  canvas->setTextScroll(false);
-
+  canvas->setFont(&fonts::FreeMono9pt7b);
+  canvas->setTextSize(VTSCALING);
+  vtcharsz[0] = canvas->textWidth("M");
+  vtcharsz[1] = canvas->fontHeight();
   vtbuf[0] = 0;
   vtbufp = vtbuf;
+  vtcurs[0] = 1;
+  vtcurs[1] = 1;
+}
+
+bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
+{
+  switch(buf[1])
+  {
+    case '[': // CSI
+      switch(cmd)
+      {
+	case 'J':
+	  if(buf[2] == '2')
+	  {
+            // clear screen
+	    canvas->deleteSprite();
+	    Arduino_init();
+	    return true;
+	  }
+	  else
+	  {
+            // clear to bottom
+            return false;
+	  }
+	  break;
+	case 'H':
+	case 'f':
+	  // move
+	  int i = 0;
+	  vtcurs[1] = buf[2] - 48;
+	  if(buf[3] != ';')
+	  {
+            vtcurs[1] = vtcurs[1]*10 + buf[3] - 48;
+	    i = 1;
+	  }
+	  vtcurs[0] = buf[4+i] - 48;
+	  if(buf[5+i] != 'H' && buf[5+i] != 'f')
+	  {
+            vtcurs[0] = vtcurs[0]*10 + buf[5+i] - 48;
+	  }
+	  vtcurs[0]=1;
+	  return true;
+      }
+      break;
+  }
+  return false;
 }
 
 void Arduino_putchar(uint8_t c)
@@ -95,24 +146,32 @@ void Arduino_putchar(uint8_t c)
   }
   else if(vtbuf[0] == '\033')
   {
+    // continued escape
+    vtbufp ++;
+    *vtbufp = c;
+
     if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || *vtbufp == ')' || *vtbufp == '(')
     {
       // end of escape, handle it
+      if(handle_vt(vtbuf, c))
+      {
+        canvas->pushSprite(0,0);
+      }
       vtbuf[0] = 0;
-    }
-    else
-    {
-      // continued escape
-      vtbufp ++;
-      *vtbufp = c;
     }
   }
   else
   {
-    canvas->print((char) c);
+    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1])*vtcharsz[1], c, TFT_CYAN, TFT_RED, VTSCALING);
     canvas->pushSprite(0,0);
+    vtcurs[0] ++;
+    if(c == '\r' || c == '\n')
+    {
+      vtcurs[0] = 1;
+      vtcurs[1] ++;
+    }
   }
-  Serial.write(c);
+  //Serial.write(c);
 }
 
 char Arduino_getchar()
@@ -180,8 +239,8 @@ void initialize_screen(  )
    }
 
    /* COLS and LINES set by curses */
-   screen_cols = COLS;
-   screen_rows = LINES;
+   screen_cols = DEFAULT_COLS;
+   screen_rows = DEFAULT_ROWS;
    attrset(themes[theme].text_attr);
 
    clear_screen(  );

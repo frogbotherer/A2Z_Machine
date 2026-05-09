@@ -114,21 +114,22 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   attrset(themes[theme].status_attr);
   int col;
   move(0,0);
-  for (col = 0; col < COLS; col++)
+  for (col = 0; col < DEFAULT_COLS; col++)
   {
     addch (' ');
   }
-
-  mvaddstr_P (0, 1, String("A2Z Machine - Version " + String(A2Z_VERSION) + " - DanTheGeek.com").c_str());
+  //                        1234567891123456789212           345             678931234567894
+  mvaddstr_P (0, 1, String("A2Z Machine  -  v" + String(A2Z_VERSION) + "  -  DanTheGeek.com").c_str());
   attrset(themes[theme].text_attr);
   yield();
   mvaddstr_P ( 2, 1, String("Theme: " + String(themes[theme].tname)).c_str());
   yield();
   mvaddstr_P ( 3, 1, "Select a game to play:");
   yield();
-  mvaddstr_P ( DEFAULT_ROWS - 2, 1, "MOVE:<tab>,<shift><tab>,<cursor>,letter|SELECT:<enter>|THEME:/|REFRESH:<f1>");
+  //                                 1234567891123456789212345678931234567894
+  mvaddstr_P ( DEFAULT_ROWS - 2, 1, "SELECT: <cursor>+<enter>|THEME: /");
   yield();
-  mvaddstr_P ( DEFAULT_ROWS - 1, 1, "Project details at https://DanTheGeek.com/a2zmachine");
+  mvaddstr_P ( DEFAULT_ROWS - 1, 1, "See: https://DanTheGeek.com/a2zmachine");
   yield();
   // show stories
   move(5,0);

@@ -100,8 +100,8 @@ extern unsigned char JTERP;
 
 #define USE_QUETZAL
 
-#define DEFAULT_ROWS 24         /* Default screen height */
-#define DEFAULT_COLS 80         /* Deafult screen width */
+#define DEFAULT_ROWS 15         /* Default screen height */
+#define DEFAULT_COLS 40         /* Deafult screen width */
 
 #define DEFAULT_RIGHT_MARGIN 1  /* # of characters in rt margin (UNIX likes 1)*/
 #define DEFAULT_TOP_MARGIN   0  /* # of lines on screen before [MORE] message */
