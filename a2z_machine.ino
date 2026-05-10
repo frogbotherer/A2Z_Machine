@@ -180,6 +180,8 @@ static bool showA2ZScreen(int &storynum)
     tcanvas->println("WARN: couldn't open GAMEDIR");
   }
   tcanvas->pushSprite(0,0);
+  d.close();
+
   while(storyfilelist[count] != NULL && count < MAXFILELIST)
   {
     yield();
@@ -227,80 +229,80 @@ static bool showA2ZScreen(int &storynum)
   while(1)
   {
     int keystroke = Arduino_getchar();
-    move(7+(count/5),1);
+    move(7+(count/2),1);
     yield();
     switch(keystroke)
     {
       case '/':
-       x = storynum % 2;
-       y = storynum / 2;
-       attrset(themes[theme].text_attr);
-       mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       yield();
-       storynum = (storynum+1)%count;
-       x = storynum % 2;
-       y = storynum / 2;
-       attrset(themes[theme].status_attr);      
-       mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       attrset(themes[theme].text_attr);
-       move(7+(count/2),1);
-       break;
+        x = storynum % 2;
+        y = storynum / 2;
+        attrset(themes[theme].text_attr);
+        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        yield();
+        storynum = (storynum+1)%count;
+        x = storynum % 2;
+        y = storynum / 2;
+        attrset(themes[theme].status_attr);      
+        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        attrset(themes[theme].text_attr);
+        move(7+(count/2),1);
+        break;
       case ',':
-       x = storynum % 2;
-       y = storynum / 2;
-       attrset(themes[theme].text_attr);
-       mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       storynum = (storynum-1)%count;
-       if(storynum < 0)
-        storynum = count - 1;
-       x = storynum % 2;
-       y = storynum / 2;
-       attrset(themes[theme].status_attr);      
-       mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       attrset(themes[theme].text_attr);
-       move(7+(count/2),1);
-       break;
+        x = storynum % 2;
+        y = storynum / 2;
+        attrset(themes[theme].text_attr);
+        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        storynum = (storynum-1)%count;
+        if(storynum < 0)
+          storynum = count - 1;
+        x = storynum % 2;
+        y = storynum / 2;
+        attrset(themes[theme].status_attr);      
+        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        attrset(themes[theme].text_attr);
+        move(7+(count/2),1);
+        break;
       case ';':
-       x = storynum % 2;
-       y = storynum / 2;
-       attrset(themes[theme].text_attr);
-       mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       if(storynum - 2 >= 0)
-       {
-        storynum = (storynum-2)%count;
-       }
-       else
-       {
-        storynum = count - (count)%2 + (storynum-1)%count;
-        if(storynum >= count)
-          storynum -= 2;
-       }
-       x = storynum % 2;
-       y = storynum / 2;
-       attrset(themes[theme].status_attr);      
-       mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       attrset(themes[theme].text_attr);
-       move(7+(count/2),1);
-       break;
+        x = storynum % 2;
+        y = storynum / 2;
+        attrset(themes[theme].text_attr);
+        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        if(storynum - 2 >= 0)
+        {
+          storynum = (storynum-2)%count;
+        }
+        else
+        {
+          storynum = count - (count)%2 + (storynum-1)%count;
+          if(storynum >= count)
+            storynum -= 2;
+        }
+        x = storynum % 2;
+        y = storynum / 2;
+        attrset(themes[theme].status_attr);      
+        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        attrset(themes[theme].text_attr);
+        move(7+(count/2),1);
+        break;
       case '.':
-       x = storynum % 2;
-       y = storynum / 2;
-       attrset(themes[theme].text_attr);
-       mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       if(storynum + 2 < count)
-        storynum = (storynum+2)%count;
-       else
-       x = storynum % 2;
-       y = storynum / 2;
-       attrset(themes[theme].status_attr);      
-       mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-       attrset(themes[theme].text_attr);
-       move(7+(count/2),1);
-       break;
+        x = storynum % 2;
+        y = storynum / 2;
+        attrset(themes[theme].text_attr);
+        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        if(storynum + 2 < count)
+          storynum = (storynum+2)%count;
+        x = storynum % 2;
+        y = storynum / 2;
+        attrset(themes[theme].status_attr);      
+        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        attrset(themes[theme].text_attr);
+        move(7+(count/2),1);
+        break;
       case 't': // change theme
         theme = (theme + 1 ) %themecount;
-       displayA2ZScreen(filenames, count, storynum);
-       break;
+        //displayA2ZScreen(filenames, count, storynum);
+        return false;
+        break;
       case '\r': // return
       case '\n':
         curs_set(1);
@@ -315,18 +317,18 @@ static bool showA2ZScreen(int &storynum)
           {
             if(tolower(*filenames[(storynum+i)%count]) == tolower(keystroke))
             {
-             x = storynum % 2;
-             y = storynum / 2;
-             attrset(themes[theme].text_attr);
-             mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-             storynum = (storynum+i)%count;
-             x = storynum % 2;
-             y = storynum / 2;
-             attrset(themes[theme].status_attr);      
-             mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-             attrset(themes[theme].text_attr);
-             move(7+(count/2),1);
-             break;
+              x = storynum % 2;
+              y = storynum / 2;
+              attrset(themes[theme].text_attr);
+              mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+              storynum = (storynum+i)%count;
+              x = storynum % 2;
+              y = storynum / 2;
+              attrset(themes[theme].status_attr);
+              mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+              attrset(themes[theme].text_attr);
+              move(7+(count/2),1);
+              break;
             }
           }
         }
@@ -452,14 +454,13 @@ void loop()
   tcanvas->pushSprite(0,0);
   static int storynum = 0;
   // This loops once per game
-  while(!showA2ZScreen(storynum));
+  while(!showA2ZScreen(storynum)) yield();
   initialize_screen(  );
 
   char storyfile[200];
 
   sprintf(storyfile,"%s/%s",GAMEPATH, storyfilelist[storynum]);
 
-  Serial.println("Opening story...");
   delay(500);
   open_story(storyfile);
   configure((zbyte_t) V1, (zbyte_t) V8 );

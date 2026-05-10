@@ -118,7 +118,6 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           {
             vtcurs[0] = vtcurs[0]*10 + buf[5+i] - 48;
           }
-	        //vtcurs[0]=1;
           return true;
         case 'J':
           if(buf[2] == '2')
@@ -272,12 +271,12 @@ void Arduino_putchar(uint8_t c)
 
 char Arduino_getchar()
 {
+  M5Cardputer.update(); // must be in AND out of loop
   while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()) {
     yield();
     M5Cardputer.update();
   };
   Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
-
   if(s.enter)
   {
     return '\n';
@@ -286,33 +285,34 @@ char Arduino_getchar()
   {
     return '\t';
   }
+  else if(s.word.size() > 0)
+  {
+    return s.word[0];
+  }
   // TODO backspace, cursor keys
-  char ret = s.word[0];
-  s.word.clear();
-  return ret;
+  return -1;
 }
 
 int inc( uint32_t timeout = 0, bool dummy = false )
 {
    uint32_t timer = millis();
-   // while(!Serial.available() && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))){yield();};
-   while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed() && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))) {yield();};
+   M5Cardputer.update();
+   while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed() && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis()))))
+   {
+     yield();
+     M5Cardputer.update();
+   };
    if(timeout > 0 && ((timer + timeout*100) <= millis()))
     return -1;
 
    Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
-   /* int c = Serial.read();
-   if ( c == -1 )
-   {
-      fatal("acursesio inc: error in Serial.read!");
-   }*/
    uint8_t c = s.word[0];
    if(c != 127) // is this a backspace key? will print it later
      Arduino_putchar(c);
-     // Serial.write(c);
-   if(c == '\r')
+
+   if(s.enter)
      Arduino_putchar('\n');
-     // Serial.write('\n');
+
    return c;
 }
 
