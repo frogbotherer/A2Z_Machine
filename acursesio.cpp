@@ -130,9 +130,29 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           else
           {
             // clear to bottom
-            return false;
+            for(i=0; i < DEFAULT_COLS; i++)
+              for(j=vtcurs[1]+1; j < DEFAULT_ROWS; j++)
+                canvas->drawChar(i*vtcharsz[0], j*vtcharsz[1], ' ', vtcurs[2], vtcurs[3], VTSCALING);
+  
+            return true;
           }
           break;
+        case 'K':
+          switch(buf[2])
+          {
+            case '2':
+              vtcurs[0] = 1;
+            case 'K':
+            case '0':
+              for(i=vtcurs[0]; i < DEFAULT_COLS; i++)
+                canvas->drawChar(i*vtcharsz[0], (vtcurs[1])*vtcharsz[1], ' ', vtcurs[2], vtcurs[3], VTSCALING);
+              break;
+            case '1':
+              for(i=0; i < vtcurs[0]; i++)
+                canvas->drawChar(i*vtcharsz[0], (vtcurs[1])*vtcharsz[1], ' ', vtcurs[2], vtcurs[3], VTSCALING);
+              break;
+          }
+          return true;
         case 'm':
           for(i=2; i<16; i++)
           {
@@ -306,8 +326,11 @@ int inc( uint32_t timeout = 0, bool dummy = false )
     return -1;
 
    Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
-   uint8_t c = s.word[0];
-   if(c != 127) // is this a backspace key? will print it later
+   uint8_t c = -1;
+   if(s.word.size() > 0)
+     c = s.word[0];
+
+   if(c != 127 && c != -1) // is this a backspace key? will print it later
      Arduino_putchar(c);
 
    if(s.enter)
