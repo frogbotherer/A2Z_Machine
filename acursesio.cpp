@@ -72,11 +72,13 @@ static void display_string( char * );
 static int read_char( int timeout );
 
 #define VTSCALING 1.0
+#define RGB565(r,g,b) (((r>>3) << 11) | ((g>>2) << 5) | b >> 3)
 LGFX_Sprite *canvas;
 static uint8_t vtbuf[16]; // for ansi escapes
 static uint8_t *vtbufp;
 static uint32_t vtcurs[4];
 static uint8_t vtcharsz[2];
+static uint8_t vtscroll[2];
 uint16_t vtflags;
 
 void Arduino_init()
@@ -87,6 +89,8 @@ void Arduino_init()
   //canvas->setTextSize(VTSCALING);
   vtcharsz[0] = canvas->textWidth("M");
   vtcharsz[1] = canvas->fontHeight();
+  vtscroll[0] = 1;
+  vtscroll[0] = DEFAULT_ROWS;
   vtbuf[0] = 0;
   vtbufp = vtbuf;
   vtcurs[0] = 1; // x
@@ -141,7 +145,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           switch(buf[2])
           {
             case '2':
-              vtcurs[0] = 1;
+              vtcurs[0] = 0;
             case 'K':
             case '0':
               for(i=vtcurs[0]; i < DEFAULT_COLS; i++)
@@ -153,6 +157,10 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
               break;
           }
           return true;
+        case 'L':
+        case 'M':
+          // TODO SCROLLING NEXT!!!
+          return true;
         case 'm':
           for(i=2; i<16; i++)
           {
@@ -160,68 +168,129 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
             {
               switch(j)
               {
+                case 0:
+                  // TODO IMPLEMENT THEME!!!!
+                  vtcurs[2] = TFT_WHITE; // fg
+                  vtcurs[3] = TFT_BLACK; // bg
+                  vtflags = 0x0;
+                  break;
+                case 4:
+                  vtflags |= 0x8;
+                  break;
+                case 24:
+                  vtflags &= (0xffff ^ 0x8);
+                  break;
                 case 7:
-                  vtflags |= 0x2;
+                  vtflags |= 0x20;
                   break;
                 case 27:
-                  vtflags &= (0xffff ^ 0x2);
+                  vtflags &= (0xffff ^ 0x20);
                   break;
                 case 30:
-                  vtcurs[2] = TFT_BLACK;
+                  vtcurs[2] = RGB565(0,0,0); //TFT_BLACK;
                   break;
                 case 31:
-                  vtcurs[2] = TFT_RED;
+                  vtcurs[2] = RGB565(170,0,0); //TFT_RED;
                   break;
                 case 32:
-                  vtcurs[2] = TFT_GREEN;
+                  vtcurs[2] = RGB565(0,170,0); //TFT_GREEN;
                   break;
                 case 33:
-                  vtcurs[2] = TFT_YELLOW;
+                  vtcurs[2] = RGB565(170,85,0); //TFT_YELLOW;
                   break;
                 case 34:
-                  vtcurs[2] = TFT_BLUE;
+                  vtcurs[2] = RGB565(0,0,170); //TFT_BLUE;
                   break;
                 case 35:
-                  vtcurs[2] = TFT_MAGENTA;
+                  vtcurs[2] = RGB565(170,0,170); //TFT_MAGENTA;
                   break;
                 case 36:
-                  vtcurs[2] = TFT_CYAN;
+                  vtcurs[2] = RGB565(0,170,170); //TFT_CYAN;
                   break;
                 case 37:
-                  vtcurs[2] = TFT_WHITE;
+                  vtcurs[2] = RGB565(170,170,170); //TFT_WHITE;
                   break;
                 case 39:
                   // default
                   vtcurs[2] = TFT_WHITE;
                   break;
+                case 90:
+                  vtcurs[2] = RGB565(85,85,85); // black
+                  break;
+                case 91:
+                  vtcurs[2] = RGB565(255,85,85); // red
+                  break;
+                case 92:
+                  vtcurs[2] = RGB565(85,255,85); // green
+                  break;
+                case 93:
+                  vtcurs[2] = RGB565(255,255,85); // yellow
+                  break;
+                case 94:
+                  vtcurs[2] = RGB565(85,85,255); // blue
+                  break;
+                case 95:
+                  vtcurs[2] = RGB565(255,85,255); //magenta
+                  break;
+                case 96:
+                  vtcurs[2] = RGB565(85,255,255); // cyan
+                  break;
+                case 97:
+                  vtcurs[2] = RGB565(255,255,255); // white
+                  break;
                 case 40:
-                  vtcurs[3] = TFT_BLACK;
+                  vtcurs[3] = RGB565(0,0,0); //TFT_BLACK;
                   break;
                 case 41:
-                  vtcurs[3] = TFT_RED;
+                  vtcurs[3] = RGB565(170,0,0); //TFT_RED;
                   break;
                 case 42:
-                  vtcurs[3] = TFT_GREEN;
+                  vtcurs[3] = RGB565(0,170,0); //TFT_GREEN;
                   break;
                 case 43:
-                  vtcurs[3] = TFT_YELLOW;
+                  vtcurs[3] = RGB565(170,85,0); //TFT_YELLOW;
                   break;
                 case 44:
-                  vtcurs[3] = TFT_BLUE;
+                  vtcurs[3] = RGB565(0,0,170); //TFT_BLUE;
                   break;
                 case 45:
-                  vtcurs[3] = TFT_MAGENTA;
+                  vtcurs[3] = RGB565(170,0,170); //TFT_MAGENTA;
                   break;
                 case 46:
-                  vtcurs[3] = TFT_CYAN;
+                  vtcurs[3] = RGB565(0,170,170); //TFT_CYAN;
                   break;
                 case 47:
-                  vtcurs[3] = TFT_WHITE;
+                  vtcurs[3] = RGB565(170,170,170); //TFT_WHITE;
                   break;
                 case 49:
                   // default
                   vtcurs[3] = TFT_BLACK;
                   break;
+                case 100:
+                  vtcurs[3] = RGB565(85,85,85); // black
+                  break;
+                case 101:
+                  vtcurs[3] = RGB565(255,85,85); // red
+                  break;
+                case 102:
+                  vtcurs[3] = RGB565(85,255,85); // green
+                  break;
+                case 103:
+                  vtcurs[3] = RGB565(255,255,85); // yellow
+                  break;
+                case 104:
+                  vtcurs[3] = RGB565(85,85,255); // blue
+                  break;
+                case 105:
+                  vtcurs[3] = RGB565(255,85,255); //magenta
+                  break;
+                case 106:
+                  vtcurs[3] = RGB565(85,255,255); // cyan
+                  break;
+                case 107:
+                  vtcurs[3] = RGB565(255,255,255); // white
+                  break;
+ 
                 default:
                   Arduino_putchar((uint8_t) j+48);
               }
@@ -235,6 +304,31 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
             else
             {
               j = j * 10 + buf[i] - 48;
+            }
+          }
+          return false;
+        case 'r':
+          j = 0;
+          for(i=2; i<16; i++)
+          {
+            if(buf[i] == 'm')
+            {
+              if(j > 0)
+                vtscroll[1] = j;
+            }
+            else if(buf[i] == ';')
+            {
+              if(j > 0)
+                vtscroll[0] = j;
+              j = 0;
+            }
+            else if(j > 0)
+            {
+              j = j*10 + buf[i] - 48;
+            }
+            else
+            {
+              j = buf[i] - 48;
             }
           }
           return false;
@@ -272,13 +366,15 @@ void Arduino_putchar(uint8_t c)
   {
     uint8_t bg = 3;
     uint8_t fg = 2;
-    if((vtflags & 0x2) == 0x2)
+    if((vtflags & 0x20) == 0x20)
     {
       // inverse video
       bg = 2;
       fg = 3;
     }
-    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1])*vtcharsz[1], c, vtcurs[bg], vtcurs[fg], VTSCALING);
+    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], c, vtcurs[bg], vtcurs[fg], VTSCALING);
+    if((vtflags & 0x8) == 0x8)
+      canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], '_', vtcurs[bg], vtcurs[fg], VTSCALING);
     canvas->pushSprite(0,0);
     vtcurs[0] ++;
     if(c == '\r' || c == '\n')
