@@ -823,8 +823,8 @@ void z_push( zword_t );
 typedef struct ztheme
 {
   const char *tname;
-  uint16_t status_attr;
-  uint16_t text_attr;  
+  uint16_t bg;
+  uint16_t fg;  
 }
 ztheme_t;
 

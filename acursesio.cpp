@@ -10,15 +10,19 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
+// rrrr rggg gggb bbbb
+// rrrr r000 gggg gg00 bbbb b000
+#define RGB565(r,g,b) (((r>>3) << 11) | ((g>>2) << 5) | b >> 3)
+#define FIXRGB(c) ((((c & 0xf800) << 8) | ((c & 0x7e0) << 5) | ((c & 0x1f) << 3)))
+
 ztheme_t themes[] = {
-  {"TRS-80 Black", (F_BLACK|B_WHITE), (F_WHITE|B_BLACK)},
-  {"Lisa White", (F_WHITE|B_BLACK), (F_BLACK|B_WHITE)},
-  {"Compaq Green", (F_BLACK|B_GREEN), (F_GREEN|B_BLACK)},
-  {"IBM XT Amber", (F_BLACK|B_YELLOW|A_DIM), (F_YELLOW|B_BLACK|A_DIM)},
-  {"Amiga Blue", (F_BLUE|B_WHITE), (F_WHITE|B_BLUE)},
-  {"Amstrad Blue and Gold", (F_YELLOW|B_BLACK|A_BOLD), (F_YELLOW|B_BLUE|A_BOLD)}
+  {"TRS-80 Black", RGB565(0,0,0), RGB565(170,170,170)},
+  {"Lisa White", RGB565(170,170,170), RGB565(0,0,0)},
+  {"Compaq Green", RGB565(0,0,0), RGB565(0,170,0)},
+  {"IBM XT Amber", RGB565(0,0,0), RGB565(170,85,0)},
+  {"Amiga Blue", RGB565(0,0,170), RGB565(170,170,170)},
+  {"Amstrad Blue and Gold", RGB565(0,0,85), RGB565(170,85,0)}
 };
-//int themecount = 5;
 int themecount = sizeof(themes)/sizeof(themes[0]);
 
 extern int theme;
@@ -72,8 +76,9 @@ static void display_string( char * );
 static int read_char( int timeout );
 
 #define VTSCALING 1.0
-#define RGB565(r,g,b) (((r>>3) << 11) | ((g>>2) << 5) | b >> 3)
+#define KEYWAIT 150
 LGFX_Sprite *canvas;
+uint32_t lastKeyTime;
 static uint8_t vtbuf[16]; // for ansi escapes
 static uint8_t *vtbufp;
 static uint32_t vtcurs[4];
@@ -85,29 +90,35 @@ void Arduino_init()
 {
   canvas = new LGFX_Sprite(&M5Cardputer.Display);
   canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
+  canvas->setBaseColor(themes[theme].bg);
+  canvas->clear(themes[theme].bg);
   //canvas->setFont(&fonts::FreeMono9pt7b);
   //canvas->setTextSize(VTSCALING);
   vtcharsz[0] = canvas->textWidth("M");
   vtcharsz[1] = canvas->fontHeight();
   vtscroll[0] = 1;
-  vtscroll[0] = DEFAULT_ROWS;
+  vtscroll[1] = DEFAULT_ROWS;
   vtbuf[0] = 0;
   vtbufp = vtbuf;
   vtcurs[0] = 1; // x
   vtcurs[1] = 1; // y
-  vtcurs[2] = TFT_WHITE; // fg
-  vtcurs[3] = TFT_BLACK; // bg
+  vtcurs[2] = themes[theme].fg; // fg
+  vtcurs[3] = themes[theme].bg; // bg
   vtflags = 0x0;
+  lastKeyTime = 0;
 }
 
 bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
 {
+  uint8_t params[4];
   int i = 0, j = 0;
   switch(buf[1])
   {
     case '[': // CSI
       switch(cmd)
       {
+        case 'E':
+          return false;
         case 'H':
         case 'f':
 	        // move
@@ -136,7 +147,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
             // clear to bottom
             for(i=0; i < DEFAULT_COLS; i++)
               for(j=vtcurs[1]+1; j < DEFAULT_ROWS; j++)
-                canvas->drawChar(i*vtcharsz[0], j*vtcharsz[1], ' ', vtcurs[2], vtcurs[3], VTSCALING);
+                canvas->drawChar(i*vtcharsz[0], j*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
   
             return true;
           }
@@ -149,11 +160,11 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
             case 'K':
             case '0':
               for(i=vtcurs[0]; i < DEFAULT_COLS; i++)
-                canvas->drawChar(i*vtcharsz[0], (vtcurs[1])*vtcharsz[1], ' ', vtcurs[2], vtcurs[3], VTSCALING);
+                canvas->drawChar(i*vtcharsz[0], (vtcurs[1])*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
               break;
             case '1':
               for(i=0; i < vtcurs[0]; i++)
-                canvas->drawChar(i*vtcharsz[0], (vtcurs[1])*vtcharsz[1], ' ', vtcurs[2], vtcurs[3], VTSCALING);
+                canvas->drawChar(i*vtcharsz[0], (vtcurs[1])*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
               break;
           }
           return true;
@@ -169,9 +180,8 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
               switch(j)
               {
                 case 0:
-                  // TODO IMPLEMENT THEME!!!!
-                  vtcurs[2] = TFT_WHITE; // fg
-                  vtcurs[3] = TFT_BLACK; // bg
+                  vtcurs[2] = themes[theme].fg; // fg
+                  vtcurs[3] = themes[theme].bg; // bg
                   vtflags = 0x0;
                   break;
                 case 4:
@@ -212,7 +222,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
                   break;
                 case 39:
                   // default
-                  vtcurs[2] = TFT_WHITE;
+                  vtcurs[2] = themes[theme].fg;
                   break;
                 case 90:
                   vtcurs[2] = RGB565(85,85,85); // black
@@ -264,7 +274,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
                   break;
                 case 49:
                   // default
-                  vtcurs[3] = TFT_BLACK;
+                  vtcurs[3] = themes[theme].bg;
                   break;
                 case 100:
                   vtcurs[3] = RGB565(85,85,85); // black
@@ -311,10 +321,19 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           j = 0;
           for(i=2; i<16; i++)
           {
-            if(buf[i] == 'm')
+            if(buf[i] == 'r')
             {
               if(j > 0)
+              {
                 vtscroll[1] = j;
+              }
+              else if(i == 3)
+              {
+                // reset
+                vtscroll[0] = 1;
+                vtscroll[1] = DEFAULT_ROWS;
+              }
+              break;
             }
             else if(buf[i] == ';')
             {
@@ -331,7 +350,40 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
               j = buf[i] - 48;
             }
           }
-          return false;
+
+          vtscroll[0] = 2; vtscroll[1] = 16;
+
+          canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0])*vtcharsz[1], themes[theme].bg);
+          //return false;
+          canvas->drawLine(0,(vtscroll[0]-1)*vtcharsz[1],canvas->width(),(vtscroll[0]-1)*vtcharsz[1],0xFF7F00);
+          canvas->drawLine(0,(vtscroll[1]-vtscroll[0])*vtcharsz[1],canvas->width(),(vtscroll[1]-vtscroll[0])*vtcharsz[1],0xFF7F00);
+          canvas->drawLine(0,(vtscroll[0]-1)*vtcharsz[1],canvas->width(),(vtscroll[1]-vtscroll[0])*vtcharsz[1],0xFF7F00);
+          return true;
+        case 'S':
+        case 'T':
+          j = 0;
+          for(i=2; i<16; i++)
+          {
+            if(buf[i] == 'S')
+            {
+              canvas->scroll(0, -vtcharsz[1]*j);
+              break;
+            }
+            else if(buf[i] == 'T')
+            {
+              canvas->scroll(0, vtcharsz[1]*j);
+              break;
+            }
+            else if(j > 0)
+            {
+              j = j*10 + buf[i] - 48;
+            }
+            else
+            {
+              j = buf[i] - 48;
+            }
+          }
+          return true;
       }
       break;
   }
@@ -362,6 +414,49 @@ void Arduino_putchar(uint8_t c)
       vtbuf[0] = 0;
     }
   }
+  else if(c < ' ')
+  {
+    // non-printable
+    switch(c)
+    {
+      case '\r':
+        vtcurs[0] = 1;
+        break;
+      case '\n':
+        if(vtcurs[1] < vtscroll[1])
+        {
+          vtcurs[1]++;
+        }
+        else
+        {
+          // scroll scrolling region up one
+          canvas->scroll(0, -vtcharsz[1]);
+          canvas->pushSprite(0,0);
+        }
+        break;
+      default:
+        canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], '?', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
+        canvas->pushSprite(0,0);
+        break;
+    }
+  }
+  else if(c == 127)
+  {
+    // backspace
+    // TODO any logic about prompt or left gutter
+    if(vtcurs[0] > 1)
+    {
+      vtcurs[0] --;
+      canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
+      canvas->pushSprite(0,0);
+    }
+  }
+  else if(c > 127)
+  {
+    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], c-128, (uint32_t)0xff0000, FIXRGB(vtcurs[2]), VTSCALING);
+    canvas->pushSprite(0,0);
+    vtcurs[0] ++;
+  }
   else
   {
     uint8_t bg = 3;
@@ -372,30 +467,27 @@ void Arduino_putchar(uint8_t c)
       bg = 2;
       fg = 3;
     }
-    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], c, vtcurs[bg], vtcurs[fg], VTSCALING);
+    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
     if((vtflags & 0x8) == 0x8)
-      canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], '_', vtcurs[bg], vtcurs[fg], VTSCALING);
+      canvas->drawFastHLine((vtcurs[0]-1)*vtcharsz[0], vtcurs[1]*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
     canvas->pushSprite(0,0);
     vtcurs[0] ++;
-    if(c == '\r' || c == '\n')
-    {
-      vtcurs[0] = 1;
-      vtcurs[1] ++;
-    }
   }
 }
 
 char Arduino_getchar()
 {
   M5Cardputer.update(); // must be in AND out of loop
-  while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()) {
+  while((!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed())
+      || (lastKeyTime+KEYWAIT) > millis()) {
     yield();
     M5Cardputer.update();
   };
   Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
+  lastKeyTime = millis();
   if(s.enter)
   {
-    return '\n';
+    return '\r';
   }
   else if(s.tab)
   {
@@ -413,11 +505,14 @@ int inc( uint32_t timeout = 0, bool dummy = false )
 {
    uint32_t timer = millis();
    M5Cardputer.update();
-   while(!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed() && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis()))))
+   while((lastKeyTime+KEYWAIT) > millis()
+      || (!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()
+      && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))))
    {
      yield();
      M5Cardputer.update();
    };
+   lastKeyTime = millis();
    if(timeout > 0 && ((timer + timeout*100) <= millis()))
     return -1;
 
@@ -430,7 +525,7 @@ int inc( uint32_t timeout = 0, bool dummy = false )
      Arduino_putchar(c);
 
    if(s.enter)
-     Arduino_putchar('\n');
+     Arduino_putchar('\r'); // maybe??
 
    return c;
 }
@@ -467,7 +562,6 @@ void initialize_screen(  )
    /* COLS and LINES set by curses */
    screen_cols = DEFAULT_COLS;
    screen_rows = DEFAULT_ROWS;
-   attrset(themes[theme].text_attr);
 
    clear_screen(  );
 
@@ -540,10 +634,7 @@ void create_status_window(  )
    get_cursor_position( &row, &col );
 
    /* set up a software scrolling region */
-
-/*
-    setscrreg(status_size, screen_rows-1);
-*/
+   setscrreg(status_size, screen_rows-1);
 
    move_cursor( row, col );
 }                               /* create_status_window */
@@ -639,13 +730,13 @@ void set_attribute( int attribute )
    if ( attribute == NORMAL )
    {
       // this is the text part of the window
-         attrset(themes[theme].text_attr);
+         attrset(A_NORMAL);
    }
 
    if ( attribute & REVERSE )
    {
       // this is the status part of the window
-      attrset(themes[theme].status_attr);
+      attrset(A_REVERSE);
    }
 
    if ( attribute & BOLD )
@@ -677,21 +768,19 @@ void display_char( int c )
 void scroll_line(  )
 {
    int row, col;
-   display_char( '\r' );
-   display_char( '\n');
 
    get_cursor_position( &row, &col );
 
    if ( row < screen_rows )
    {
      display_char( '\r' );
-     display_char( '\n');
+     display_char( '\n' );
    }
    else
    {
       setscrreg( status_size, screen_rows - 1 );
       display_char( '\r' );
-      //display_char( '\n');
+      display_char( '\n' );
    }
 
    current_col = 1;
@@ -705,7 +794,6 @@ int input_line( int buflen, char *buffer, int timeout, int *read_size )
    int c;
    yield();
    *read_size = 0;
-   // while ( ( c = read_char(  ) ) != '\n' )
    while ( ( c = read_char(timeout) ) != '\r' ) // use for Arduino line feed
    {
       if(c == 127) // backspace pressed?
@@ -714,14 +802,14 @@ int input_line( int buflen, char *buffer, int timeout, int *read_size )
         {
           buffer[(*read_size)] = '\0';
           (*read_size)--;
-          Serial.print((char) c); // OK to backspace, characters still on the left side
+          //Serial.print((char) c); // OK to backspace, characters still on the left side
+          Arduino_putchar(c); // TODO probably?
         }
       }
       else if ( *read_size < buflen )
          buffer[( *read_size )++] = c;
    }
    text_col = 0;
-   //Serial.print("");
    //delay(1000);
    yield();
    return c;
@@ -746,14 +834,12 @@ static int read_char( int timeout = 0 )
          for ( n = 0; n < COMMAND_LEN; n++ )
          {
             command[n] = inc(timeout);
-            //if ( command[n] == '\n' )
             if ( command[n] == '\r' )
                break;
          }
          command[n] = '\0';
          /* If line was too long, flush input to the end of it.  */
          if ( n == COMMAND_LEN )
-            //while ( inc(timeout) != '\n' )
             while ( inc(timeout) != '\r' )
                ;
          continue;

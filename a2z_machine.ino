@@ -107,11 +107,10 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
 {
   tcanvas->println("INFO: displayA2ZScreen()");
   tcanvas->pushSprite(0,0);
-  //int themecount = sizeof(themes)/sizeof(themes[0]);
-  attrset(themes[theme].text_attr);
+  attrset(A_NORMAL);
   erase();
   // top line
-  attrset(themes[theme].status_attr);
+  attrset(A_REVERSE);
   int col;
   move(0,0);
   for (col = 0; col < DEFAULT_COLS; col++)
@@ -120,7 +119,7 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   }
   //                        1234567891123456789212           345             678931234567894
   mvaddstr_P (0, 1, String("A2Z Machine  -  v" + String(A2Z_VERSION) + "  -  DanTheGeek.com").c_str());
-  attrset(themes[theme].text_attr);
+  attrset(A_NORMAL);
   yield();
   mvaddstr_P ( 2, 1, String("Theme: " + String(themes[theme].tname)).c_str());
   yield();
@@ -136,13 +135,13 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   for(int i = 0 ; i < count; i++)
   {
     if(i == storynum)
-      attrset(themes[theme].status_attr);      
+      attrset(A_REVERSE);      
     int x = i % 2;
     int y = i / 2;
     mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[i]) + String(" ")).c_str() );
     yield();
     if(i == storynum)
-      attrset(themes[theme].text_attr);
+      attrset(A_NORMAL);
   }
 
   move(7+(count/2),1);
@@ -151,7 +150,6 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
 static bool showA2ZScreen(int &storynum)
 {
   char filenames[MAXFILELIST][20];
-  //int themecount = sizeof(themes)/sizeof(themes[0]);
 
   if ( initscr(  ) )
   {
@@ -236,36 +234,36 @@ static bool showA2ZScreen(int &storynum)
       case '/':
         x = storynum % 2;
         y = storynum / 2;
-        attrset(themes[theme].text_attr);
+        attrset(A_NORMAL);
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         yield();
         storynum = (storynum+1)%count;
         x = storynum % 2;
         y = storynum / 2;
-        attrset(themes[theme].status_attr);      
+        attrset(A_REVERSE);      
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-        attrset(themes[theme].text_attr);
+        attrset(A_NORMAL);
         move(7+(count/2),1);
         break;
       case ',':
         x = storynum % 2;
         y = storynum / 2;
-        attrset(themes[theme].text_attr);
+        attrset(A_NORMAL);
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         storynum = (storynum-1)%count;
         if(storynum < 0)
           storynum = count - 1;
         x = storynum % 2;
         y = storynum / 2;
-        attrset(themes[theme].status_attr);      
+        attrset(A_REVERSE);      
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-        attrset(themes[theme].text_attr);
+        attrset(A_NORMAL);
         move(7+(count/2),1);
         break;
       case ';':
         x = storynum % 2;
         y = storynum / 2;
-        attrset(themes[theme].text_attr);
+        attrset(A_NORMAL);
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         if(storynum - 2 >= 0)
         {
@@ -279,23 +277,23 @@ static bool showA2ZScreen(int &storynum)
         }
         x = storynum % 2;
         y = storynum / 2;
-        attrset(themes[theme].status_attr);      
+        attrset(A_REVERSE);
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-        attrset(themes[theme].text_attr);
+        attrset(A_NORMAL);
         move(7+(count/2),1);
         break;
       case '.':
         x = storynum % 2;
         y = storynum / 2;
-        attrset(themes[theme].text_attr);
+        attrset(A_NORMAL);
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         if(storynum + 2 < count)
           storynum = (storynum+2)%count;
         x = storynum % 2;
         y = storynum / 2;
-        attrset(themes[theme].status_attr);      
+        attrset(A_REVERSE);
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-        attrset(themes[theme].text_attr);
+        attrset(A_NORMAL);
         move(7+(count/2),1);
         break;
       case 't': // change theme
@@ -319,14 +317,14 @@ static bool showA2ZScreen(int &storynum)
             {
               x = storynum % 2;
               y = storynum / 2;
-              attrset(themes[theme].text_attr);
+              attrset(A_NORMAL);
               mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
               storynum = (storynum+i)%count;
               x = storynum % 2;
               y = storynum / 2;
-              attrset(themes[theme].status_attr);
+              attrset(A_REVERSE);
               mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-              attrset(themes[theme].text_attr);
+              attrset(A_NORMAL);
               move(7+(count/2),1);
               break;
             }
@@ -439,6 +437,7 @@ void setup()
 
   M5Cardputer.Display.setRotation(1);
   M5Cardputer.Display.setTextFont(&fonts::FreeMono9pt7b);
+  M5Cardputer.Display.setColorDepth(16);
 
   // debugging purposes
   tcanvas = new LGFX_Sprite(&M5Cardputer.Display);
