@@ -76,7 +76,7 @@ static void display_string( char * );
 static int read_char( int timeout );
 
 #define VTSCALING 1.0
-#define KEYWAIT 150
+#define KEYWAIT 180
 LGFX_Sprite *canvas;
 uint32_t lastKeyTime;
 static uint8_t vtbuf[16]; // for ansi escapes
@@ -89,14 +89,14 @@ uint16_t vtflags;
 void Arduino_init()
 {
   canvas = new LGFX_Sprite(&M5Cardputer.Display);
-  canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
+  canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height()+1); // shutup
   canvas->setBaseColor(themes[theme].bg);
   canvas->clear(themes[theme].bg);
   //canvas->setFont(&fonts::FreeMono9pt7b);
   //canvas->setTextSize(VTSCALING);
   vtcharsz[0] = canvas->textWidth("M");
   vtcharsz[1] = canvas->fontHeight();
-  vtscroll[0] = 1;
+  vtscroll[0] = 2; // TODO 1
   vtscroll[1] = DEFAULT_ROWS;
   vtbuf[0] = 0;
   vtbufp = vtbuf;
@@ -106,33 +106,79 @@ void Arduino_init()
   vtcurs[3] = themes[theme].bg; // bg
   vtflags = 0x0;
   lastKeyTime = 0;
+
+  // TODO WHY?
+  canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0]+1)*vtcharsz[1], themes[theme].bg);
+  //canvas->setScrollRect(0,(vtscroll[0]-1)*vtcharsz[1], canvas->width(), 128, themes[theme].bg);
 }
 
 bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
 {
-  uint8_t params[4];
-  int i = 0, j = 0;
+  // parse params out of buf[]
+  uint8_t params[4] = {0,0,0,0};
+  int i = 0, j = -1, param_len = 0;
+  for(i=2; i<16; i++)
+  {
+    if(buf[i] == cmd)
+    {
+      if(j >= 0)
+      {
+        params[param_len] = j;
+        param_len++;
+      }
+      break;
+    }
+    else if(buf[i] == ';')
+    {
+      if(j >= 0)
+      {
+        params[param_len] = j;
+        param_len++;
+      }
+      j = -1;
+    }
+    else if(j >= 0)
+    {
+      j = j*10 + (buf[i] - 48);
+    }
+    else
+    {
+      j = buf[i] - 48;
+    }
+  }
+
   switch(buf[1])
   {
     case '[': // CSI
       switch(cmd)
       {
+        case 'F':
+          vtcurs[0] = 1;
+          // no break/return 
+        case 'A':
+          vtcurs[0] -= params[0];
+          if(params[0] == 0) params[0] = 1;
+          return false;
         case 'E':
+          vtcurs[1] = 1;
+          // no break/return
+        case 'B':
+          if(params[0] == 0) params[0] = 1;
+          vtcurs[0] += params[0];
+          return false;
+        case 'C':
+          if(params[0] == 0) params[0] = 1;
+          vtcurs[1] += params[0];
+          return false;
+        case 'D':
+          if(params[0] == 0) params[0] = 1;
+          vtcurs[1] -= params[0];
           return false;
         case 'H':
         case 'f':
 	        // move
-          vtcurs[1] = buf[2] - 48;
-          if(buf[3] != ';')
-          {
-            vtcurs[1] = vtcurs[1]*10 + buf[3] - 48;
-            i = 1;
-          }
-          vtcurs[0] = buf[4+i] - 48;
-          if(buf[5+i] != 'H' && buf[5+i] != 'f')
-          {
-            vtcurs[0] = vtcurs[0]*10 + buf[5+i] - 48;
-          }
+          vtcurs[1] = params[0];
+          vtcurs[0] = params[1];
           return true;
         case 'J':
           if(buf[2] == '2')
@@ -156,7 +202,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           switch(buf[2])
           {
             case '2':
-              vtcurs[0] = 0;
+              vtcurs[0] = 1;
             case 'K':
             case '0':
               for(i=vtcurs[0]; i < DEFAULT_COLS; i++)
@@ -173,216 +219,160 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           // TODO SCROLLING NEXT!!!
           return true;
         case 'm':
-          for(i=2; i<16; i++)
+          for(i=0; i<param_len; i++)
           {
-            if(buf[i] == ';' || buf[i] == 'm')
+            switch(params[i])
             {
-              switch(j)
-              {
-                case 0:
-                  vtcurs[2] = themes[theme].fg; // fg
-                  vtcurs[3] = themes[theme].bg; // bg
-                  vtflags = 0x0;
-                  break;
-                case 4:
-                  vtflags |= 0x8;
-                  break;
-                case 24:
-                  vtflags &= (0xffff ^ 0x8);
-                  break;
-                case 7:
-                  vtflags |= 0x20;
-                  break;
-                case 27:
-                  vtflags &= (0xffff ^ 0x20);
-                  break;
-                case 30:
-                  vtcurs[2] = RGB565(0,0,0); //TFT_BLACK;
-                  break;
-                case 31:
-                  vtcurs[2] = RGB565(170,0,0); //TFT_RED;
-                  break;
-                case 32:
-                  vtcurs[2] = RGB565(0,170,0); //TFT_GREEN;
-                  break;
-                case 33:
-                  vtcurs[2] = RGB565(170,85,0); //TFT_YELLOW;
-                  break;
-                case 34:
-                  vtcurs[2] = RGB565(0,0,170); //TFT_BLUE;
-                  break;
-                case 35:
-                  vtcurs[2] = RGB565(170,0,170); //TFT_MAGENTA;
-                  break;
-                case 36:
-                  vtcurs[2] = RGB565(0,170,170); //TFT_CYAN;
-                  break;
-                case 37:
-                  vtcurs[2] = RGB565(170,170,170); //TFT_WHITE;
-                  break;
-                case 39:
-                  // default
-                  vtcurs[2] = themes[theme].fg;
-                  break;
-                case 90:
-                  vtcurs[2] = RGB565(85,85,85); // black
-                  break;
-                case 91:
-                  vtcurs[2] = RGB565(255,85,85); // red
-                  break;
-                case 92:
-                  vtcurs[2] = RGB565(85,255,85); // green
-                  break;
-                case 93:
-                  vtcurs[2] = RGB565(255,255,85); // yellow
-                  break;
-                case 94:
-                  vtcurs[2] = RGB565(85,85,255); // blue
-                  break;
-                case 95:
-                  vtcurs[2] = RGB565(255,85,255); //magenta
-                  break;
-                case 96:
-                  vtcurs[2] = RGB565(85,255,255); // cyan
-                  break;
-                case 97:
-                  vtcurs[2] = RGB565(255,255,255); // white
-                  break;
-                case 40:
-                  vtcurs[3] = RGB565(0,0,0); //TFT_BLACK;
-                  break;
-                case 41:
-                  vtcurs[3] = RGB565(170,0,0); //TFT_RED;
-                  break;
-                case 42:
-                  vtcurs[3] = RGB565(0,170,0); //TFT_GREEN;
-                  break;
-                case 43:
-                  vtcurs[3] = RGB565(170,85,0); //TFT_YELLOW;
-                  break;
-                case 44:
-                  vtcurs[3] = RGB565(0,0,170); //TFT_BLUE;
-                  break;
-                case 45:
-                  vtcurs[3] = RGB565(170,0,170); //TFT_MAGENTA;
-                  break;
-                case 46:
-                  vtcurs[3] = RGB565(0,170,170); //TFT_CYAN;
-                  break;
-                case 47:
-                  vtcurs[3] = RGB565(170,170,170); //TFT_WHITE;
-                  break;
-                case 49:
-                  // default
-                  vtcurs[3] = themes[theme].bg;
-                  break;
-                case 100:
-                  vtcurs[3] = RGB565(85,85,85); // black
-                  break;
-                case 101:
-                  vtcurs[3] = RGB565(255,85,85); // red
-                  break;
-                case 102:
-                  vtcurs[3] = RGB565(85,255,85); // green
-                  break;
-                case 103:
-                  vtcurs[3] = RGB565(255,255,85); // yellow
-                  break;
-                case 104:
-                  vtcurs[3] = RGB565(85,85,255); // blue
-                  break;
-                case 105:
-                  vtcurs[3] = RGB565(255,85,255); //magenta
-                  break;
-                case 106:
-                  vtcurs[3] = RGB565(85,255,255); // cyan
-                  break;
-                case 107:
-                  vtcurs[3] = RGB565(255,255,255); // white
-                  break;
- 
-                default:
-                  Arduino_putchar((uint8_t) j+48);
-              }
-              j = 0;
-              if(buf[i] == 'm') break;
-            }
-            else if(j == 0)
-            {
-              j = buf[i] - 48;
-            }
-            else
-            {
-              j = j * 10 + buf[i] - 48;
+              case 0:
+                vtcurs[2] = themes[theme].fg; // fg
+                vtcurs[3] = themes[theme].bg; // bg
+                vtflags = 0x0;
+                break;
+              case 4:
+                vtflags |= 0x8;
+                break;
+              case 24:
+                vtflags &= (0xffff ^ 0x8);
+                break;
+              case 7:
+                vtflags |= 0x20;
+                break;
+              case 27:
+                vtflags &= (0xffff ^ 0x20);
+                break;
+              case 30:
+                vtcurs[2] = RGB565(0,0,0); //TFT_BLACK;
+                break;
+              case 31:
+                vtcurs[2] = RGB565(170,0,0); //TFT_RED;
+                break;
+              case 32:
+                vtcurs[2] = RGB565(0,170,0); //TFT_GREEN;
+                break;
+              case 33:
+                vtcurs[2] = RGB565(170,85,0); //TFT_YELLOW;
+                break;
+              case 34:
+                vtcurs[2] = RGB565(0,0,170); //TFT_BLUE;
+                break;
+              case 35:
+                vtcurs[2] = RGB565(170,0,170); //TFT_MAGENTA;
+                break;
+              case 36:
+                vtcurs[2] = RGB565(0,170,170); //TFT_CYAN;
+                break;
+              case 37:
+                vtcurs[2] = RGB565(170,170,170); //TFT_WHITE;
+                break;
+              case 39:
+                // default
+                vtcurs[2] = themes[theme].fg;
+                break;
+              case 90:
+                vtcurs[2] = RGB565(85,85,85); // black
+                break;
+              case 91:
+                vtcurs[2] = RGB565(255,85,85); // red
+                break;
+              case 92:
+                vtcurs[2] = RGB565(85,255,85); // green
+                break;
+              case 93:
+                vtcurs[2] = RGB565(255,255,85); // yellow
+                break;
+              case 94:
+                vtcurs[2] = RGB565(85,85,255); // blue
+                break;
+              case 95:
+                vtcurs[2] = RGB565(255,85,255); //magenta
+                break;
+              case 96:
+                vtcurs[2] = RGB565(85,255,255); // cyan
+                break;
+              case 97:
+                vtcurs[2] = RGB565(255,255,255); // white
+                break;
+              case 40:
+                vtcurs[3] = RGB565(0,0,0); //TFT_BLACK;
+                break;
+              case 41:
+                vtcurs[3] = RGB565(170,0,0); //TFT_RED;
+                break;
+              case 42:
+                vtcurs[3] = RGB565(0,170,0); //TFT_GREEN;
+                break;
+              case 43:
+                vtcurs[3] = RGB565(170,85,0); //TFT_YELLOW;
+                break;
+              case 44:
+                vtcurs[3] = RGB565(0,0,170); //TFT_BLUE;
+                break;
+              case 45:
+                vtcurs[3] = RGB565(170,0,170); //TFT_MAGENTA;
+                break;
+              case 46:
+                vtcurs[3] = RGB565(0,170,170); //TFT_CYAN;
+                break;
+              case 47:
+                vtcurs[3] = RGB565(170,170,170); //TFT_WHITE;
+                break;
+              case 49:
+                // default
+                vtcurs[3] = themes[theme].bg;
+                break;
+              case 100:
+                vtcurs[3] = RGB565(85,85,85); // black
+                break;
+              case 101:
+                vtcurs[3] = RGB565(255,85,85); // red
+                break;
+              case 102:
+                vtcurs[3] = RGB565(85,255,85); // green
+                break;
+              case 103:
+                vtcurs[3] = RGB565(255,255,85); // yellow
+                break;
+              case 104:
+                vtcurs[3] = RGB565(85,85,255); // blue
+                break;
+              case 105:
+                vtcurs[3] = RGB565(255,85,255); //magenta
+                break;
+              case 106:
+                vtcurs[3] = RGB565(85,255,255); // cyan
+                break;
+              case 107:
+                vtcurs[3] = RGB565(255,255,255); // white
+                break;
+              default:
+                Arduino_putchar((uint8_t) j+48);
             }
           }
           return false;
         case 'r':
-          j = 0;
-          for(i=2; i<16; i++)
+          if(param_len == 0)
           {
-            if(buf[i] == 'r')
-            {
-              if(j > 0)
-              {
-                vtscroll[1] = j;
-              }
-              else if(i == 3)
-              {
-                // reset
-                vtscroll[0] = 1;
-                vtscroll[1] = DEFAULT_ROWS;
-              }
-              break;
-            }
-            else if(buf[i] == ';')
-            {
-              if(j > 0)
-                vtscroll[0] = j;
-              j = 0;
-            }
-            else if(j > 0)
-            {
-              j = j*10 + buf[i] - 48;
-            }
-            else
-            {
-              j = buf[i] - 48;
-            }
+            // reset
+            vtscroll[0] = 1;
+            vtscroll[1] = DEFAULT_ROWS;
+          }
+          else
+          {
+            vtscroll[0] = params[0];
+            vtscroll[1] = params[1];
           }
 
-          vtscroll[0] = 2; vtscroll[1] = 16;
-
-          canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0])*vtcharsz[1], themes[theme].bg);
+          canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0])*vtcharsz[1], 0x00ff);// themes[theme].bg);
           //return false;
           canvas->drawLine(0,(vtscroll[0]-1)*vtcharsz[1],canvas->width(),(vtscroll[0]-1)*vtcharsz[1],0xFF7F00);
           canvas->drawLine(0,(vtscroll[1]-vtscroll[0])*vtcharsz[1],canvas->width(),(vtscroll[1]-vtscroll[0])*vtcharsz[1],0xFF7F00);
           canvas->drawLine(0,(vtscroll[0]-1)*vtcharsz[1],canvas->width(),(vtscroll[1]-vtscroll[0])*vtcharsz[1],0xFF7F00);
           return true;
         case 'S':
+          canvas->scroll(0, -vtcharsz[1]*params[0]);
+          return true;
         case 'T':
-          j = 0;
-          for(i=2; i<16; i++)
-          {
-            if(buf[i] == 'S')
-            {
-              canvas->scroll(0, -vtcharsz[1]*j);
-              break;
-            }
-            else if(buf[i] == 'T')
-            {
-              canvas->scroll(0, vtcharsz[1]*j);
-              break;
-            }
-            else if(j > 0)
-            {
-              j = j*10 + buf[i] - 48;
-            }
-            else
-            {
-              j = buf[i] - 48;
-            }
-          }
+          canvas->scroll(0, vtcharsz[1]*params[0]);
           return true;
       }
       break;
@@ -392,7 +382,13 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
 
 void Arduino_putchar(uint8_t c)
 {
-  if(c == '\033')
+  if(c == 255)
+  {
+    // -1 being returned from other fns
+    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], '!', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
+    canvas->pushSprite(0,0);
+  }
+  else if(c == '\033')
   {
     // start of esc seq
     vtbuf[0] = c;
@@ -453,7 +449,7 @@ void Arduino_putchar(uint8_t c)
   }
   else if(c > 127)
   {
-    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], c-128, (uint32_t)0xff0000, FIXRGB(vtcurs[2]), VTSCALING);
+    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], c-192, (uint32_t)0xff0000, FIXRGB(vtcurs[2]), VTSCALING);
     canvas->pushSprite(0,0);
     vtcurs[0] ++;
   }
@@ -477,57 +473,63 @@ void Arduino_putchar(uint8_t c)
 
 char Arduino_getchar()
 {
-  M5Cardputer.update(); // must be in AND out of loop
-  while((!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed())
+  for(;;)
+  {
+    M5Cardputer.update(); // must be in AND out of loop
+    while((!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed())
       || (lastKeyTime+KEYWAIT) > millis()) {
+      yield();
+      M5Cardputer.update();
+    };
+    Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
+    lastKeyTime = millis();
+    if(s.enter)
+      return '\r';
+    else if(s.tab)
+      return '\t';
+    else if(s.del)
+      return 127;
+    else if(s.word.size() > 0)
+      return s.word[0];
+    // TODO cursor keys
+  }
+}
+
+int inc( uint32_t timeout = 0 )
+{
+  uint32_t timer = millis();
+WAITLOOP: M5Cardputer.update();
+  while((lastKeyTime+KEYWAIT) > millis()
+      || (!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()
+      && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))))
+  {
     yield();
     M5Cardputer.update();
   };
-  Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
   lastKeyTime = millis();
+  if(timeout > 0 && ((timer + timeout*100) <= millis()))
+    return -1;
+
+  Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
+  uint8_t c = 0;
+  if(s.word.size() > 0)
+    c = s.word[0];
+
   if(s.enter)
   {
+    Arduino_putchar('\r'); // maybe??
+    Arduino_putchar('\n'); // maybe??
     return '\r';
   }
   else if(s.tab)
-  {
     return '\t';
-  }
-  else if(s.word.size() > 0)
-  {
-    return s.word[0];
-  }
-  // TODO backspace, cursor keys
-  return -1;
-}
+  else if(s.del)
+    return 127;
+  else if(c == 0) // some other cardputer key
+    goto WAITLOOP;
 
-int inc( uint32_t timeout = 0, bool dummy = false )
-{
-   uint32_t timer = millis();
-   M5Cardputer.update();
-   while((lastKeyTime+KEYWAIT) > millis()
-      || (!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()
-      && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))))
-   {
-     yield();
-     M5Cardputer.update();
-   };
-   lastKeyTime = millis();
-   if(timeout > 0 && ((timer + timeout*100) <= millis()))
-    return -1;
-
-   Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
-   uint8_t c = -1;
-   if(s.word.size() > 0)
-     c = s.word[0];
-
-   if(c != 127 && c != -1) // is this a backspace key? will print it later
-     Arduino_putchar(c);
-
-   if(s.enter)
-     Arduino_putchar('\r'); // maybe??
-
-   return c;
+  Arduino_putchar(c);
+  return c;
 }
 
 static int uninc( int c )
@@ -538,7 +540,6 @@ static int uninc( int c )
 
 static int outc( int c )
 {
-   // Serial.print(String((char) c));
    Arduino_putchar((uint8_t) c);
    return c;
 }
@@ -791,28 +792,29 @@ void scroll_line(  )
 
 int input_line( int buflen, char *buffer, int timeout, int *read_size )
 {
-   int c;
-   yield();
-   *read_size = 0;
-   while ( ( c = read_char(timeout) ) != '\r' ) // use for Arduino line feed
-   {
-      if(c == 127) // backspace pressed?
+  int c;
+  yield();
+  *read_size = 0;
+  while ( ( c = read_char(timeout) ) != '\r' ) // use for Arduino line feed
+  {
+    if(c == 127) // backspace pressed?
+    {
+      if(*read_size > 0)
       {
-        if(*read_size > 0)
-        {
-          buffer[(*read_size)] = '\0';
-          (*read_size)--;
-          //Serial.print((char) c); // OK to backspace, characters still on the left side
-          Arduino_putchar(c); // TODO probably?
-        }
+        buffer[(*read_size)] = '\0';
+        (*read_size)--;
+        // OK to backspace, characters still on the left side
+        Arduino_putchar(c);
       }
-      else if ( *read_size < buflen )
-         buffer[( *read_size )++] = c;
-   }
-   text_col = 0;
-   //delay(1000);
-   yield();
-   return c;
+    }
+    else if ( c == -1 )
+      return -1;
+    else if ( *read_size < buflen )
+      buffer[( *read_size )++] = c;
+  }
+  text_col = 0;
+  yield();
+  return c;
 }                               /* input_line */
 
 #define COMMAND_LEN 20
@@ -867,11 +869,6 @@ static int read_key( int mode )
       do
       {
          c = Arduino_getchar();
-         if ( c == 4 )
-         {
-            reset_screen(  );
-            exit( 0 );
-         }                      /* CTRL-D (EOF) */
       }
       while ( !( c == 10 || c == 13 || c == 8 ) && ( c < 32 || c > 127 ) );
    }
@@ -880,11 +877,6 @@ static int read_key( int mode )
       do
       {
          c = Arduino_getchar();
-         if ( c == 4 )
-         {
-            reset_screen(  );
-            exit( 0 );
-         }                      /* CTRL-D (EOF) */
       }
       while ( !( c == 27 || c == 10 || c == 13 || c == 8 ) && ( c < 32 || c > 127 ) );
    }

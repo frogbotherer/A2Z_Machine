@@ -452,11 +452,11 @@ void output_new_line( void )
             if ( replaying == OFF )
             {
                get_cursor_position( &row, &col );
-               row = min(row,DEFAULT_ROWS);
 
-               output_string( "[MORE]" );clear_line();
-               inc(0,false);
-               move_cursor( row-1, col );
+               output_string( "[MORE]" );
+               ( void ) input_character( 0 );
+               move_cursor( row, col );
+               output_string( "      " );
                move_cursor( row, col );
             }
          }

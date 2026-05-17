@@ -100,7 +100,7 @@ extern unsigned char JTERP;
 
 #define USE_QUETZAL
 
-#define DEFAULT_ROWS 16         /* Default screen height */
+#define DEFAULT_ROWS 17         /* Default screen height */
 #define DEFAULT_COLS 40         /* Deafult screen width */
 
 #define DEFAULT_RIGHT_MARGIN 1  /* # of characters in rt margin (UNIX likes 1)*/
@@ -742,7 +742,6 @@ void z_erase_line( zword_t );
 void z_erase_window( zword_t );
 void z_print_table( int, zword_t * );
 void blank_status_line( void );
-int inc( uint32_t, bool);
 void output_char( int );
 void output_new_line( void );
 void output_string( const char * );
