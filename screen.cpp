@@ -280,9 +280,9 @@ void z_show_status( void )
       /* If a time display print the hours and minutes from global
        * variables 17 and 18 */
 
-      pad_line( screen_cols - 21 );
+      pad_line( screen_cols - 14 );
       status_part[count] = &status_line[status_pos];
-      write_string( " Time: " );
+      write_string( " T: " );
       print_time( load_variable( 17 ), load_variable( 18 ) );
       end_of_string[count++] = status_pos;
       status_line[status_pos++] = '\0';
@@ -293,16 +293,16 @@ void z_show_status( void )
       /* If a moves/score display print the score and moves from global
        * variables 17 and 18 */
 
-      pad_line( screen_cols - 31 );
+      pad_line( screen_cols - 20 );
       status_part[count] = &status_line[status_pos];
-      write_string( " Score: " );
+      write_string( " S: " );
       z_print_num( load_variable( 17 ) );
       end_of_string[count++] = status_pos;
       status_line[status_pos++] = '\0';
 
-      pad_line( screen_cols - 15 );
+      pad_line( screen_cols - 11 );
       status_part[count] = &status_line[status_pos];
-      write_string( " Moves: " );
+      write_string( " M: " );
       z_print_num( load_variable( 18 ) );
       end_of_string[count++] = status_pos;
       status_line[status_pos++] = '\0';

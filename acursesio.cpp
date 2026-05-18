@@ -59,7 +59,6 @@ static int saved_col;
 
 static int status_row = 0;
 static int status_col = 0;
-static int text_col = 0;
 
 static int cursor_saved = OFF;
 
@@ -100,8 +99,8 @@ void Arduino_init()
   vtscroll[1] = DEFAULT_ROWS;
   vtbuf[0] = 0;
   vtbufp = vtbuf;
-  vtcurs[0] = 1; // x
-  vtcurs[1] = 1; // y
+  current_col = 1; // x
+  current_row = 1; // y
   vtcurs[2] = themes[theme].fg; // fg
   vtcurs[3] = themes[theme].bg; // bg
   vtflags = 0x0;
@@ -109,7 +108,6 @@ void Arduino_init()
 
   // TODO WHY?
   canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0]+1)*vtcharsz[1], themes[theme].bg);
-  //canvas->setScrollRect(0,(vtscroll[0]-1)*vtcharsz[1], canvas->width(), 128, themes[theme].bg);
 }
 
 bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
@@ -153,32 +151,32 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
       switch(cmd)
       {
         case 'F':
-          vtcurs[0] = 1;
+          current_col = 1;
           // no break/return 
         case 'A':
-          vtcurs[0] -= params[0];
+          current_col -= params[0];
           if(params[0] == 0) params[0] = 1;
           return false;
         case 'E':
-          vtcurs[1] = 1;
+          current_row = 1;
           // no break/return
         case 'B':
           if(params[0] == 0) params[0] = 1;
-          vtcurs[0] += params[0];
+          current_col += params[0];
           return false;
         case 'C':
           if(params[0] == 0) params[0] = 1;
-          vtcurs[1] += params[0];
+          current_row += params[0];
           return false;
         case 'D':
           if(params[0] == 0) params[0] = 1;
-          vtcurs[1] -= params[0];
+          current_row -= params[0];
           return false;
         case 'H':
         case 'f':
 	        // move
-          vtcurs[1] = params[0];
-          vtcurs[0] = params[1];
+          current_row = params[0];
+          current_col = params[1];
           return true;
         case 'J':
           if(buf[2] == '2')
@@ -192,7 +190,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           {
             // clear to bottom
             for(i=0; i < DEFAULT_COLS; i++)
-              for(j=vtcurs[1]+1; j < DEFAULT_ROWS; j++)
+              for(j=current_row+1; j < DEFAULT_ROWS; j++)
                 canvas->drawChar(i*vtcharsz[0], j*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
   
             return true;
@@ -202,15 +200,15 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           switch(buf[2])
           {
             case '2':
-              vtcurs[0] = 1;
+              current_col = 1;
             case 'K':
             case '0':
-              for(i=vtcurs[0]; i < DEFAULT_COLS; i++)
-                canvas->drawChar(i*vtcharsz[0], (vtcurs[1])*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
+              for(i=current_col; i < DEFAULT_COLS; i++)
+                canvas->drawChar(i*vtcharsz[0], (current_row)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
               break;
             case '1':
-              for(i=0; i < vtcurs[0]; i++)
-                canvas->drawChar(i*vtcharsz[0], (vtcurs[1])*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
+              for(i=0; i < current_col; i++)
+                canvas->drawChar(i*vtcharsz[0], (current_row)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
               break;
           }
           return true;
@@ -362,12 +360,8 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
             vtscroll[1] = params[1];
           }
 
-          canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0])*vtcharsz[1], 0x00ff);// themes[theme].bg);
-          //return false;
-          canvas->drawLine(0,(vtscroll[0]-1)*vtcharsz[1],canvas->width(),(vtscroll[0]-1)*vtcharsz[1],0xFF7F00);
-          canvas->drawLine(0,(vtscroll[1]-vtscroll[0])*vtcharsz[1],canvas->width(),(vtscroll[1]-vtscroll[0])*vtcharsz[1],0xFF7F00);
-          canvas->drawLine(0,(vtscroll[0]-1)*vtcharsz[1],canvas->width(),(vtscroll[1]-vtscroll[0])*vtcharsz[1],0xFF7F00);
-          return true;
+          canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0]+1)*vtcharsz[1], themes[theme].bg);
+          return false;
         case 'S':
           canvas->scroll(0, -vtcharsz[1]*params[0]);
           return true;
@@ -384,8 +378,8 @@ void Arduino_putchar(uint8_t c)
 {
   if(c == 255)
   {
-    // -1 being returned from other fns
-    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], '!', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
+    // -1 being returned from other fns, this is a bug
+    canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], '!', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
     canvas->pushSprite(0,0);
   }
   else if(c == '\033')
@@ -416,12 +410,12 @@ void Arduino_putchar(uint8_t c)
     switch(c)
     {
       case '\r':
-        vtcurs[0] = 1;
+        current_col = 1;
         break;
       case '\n':
-        if(vtcurs[1] < vtscroll[1])
+        if(current_row < vtscroll[1])
         {
-          vtcurs[1]++;
+          current_row++;
         }
         else
         {
@@ -430,28 +424,27 @@ void Arduino_putchar(uint8_t c)
           canvas->pushSprite(0,0);
         }
         break;
+      case '\b':
+        // backspace
+        if(current_col > 1)
+        {
+          current_col --;
+          canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
+          canvas->pushSprite(0,0);
+        }
+        break;
       default:
-        canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], '?', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
+        canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], '?', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
         canvas->pushSprite(0,0);
         break;
     }
   }
-  else if(c == 127)
+  else if(c >= 127)
   {
-    // backspace
-    // TODO any logic about prompt or left gutter
-    if(vtcurs[0] > 1)
-    {
-      vtcurs[0] --;
-      canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
-      canvas->pushSprite(0,0);
-    }
-  }
-  else if(c > 127)
-  {
-    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], c-192, (uint32_t)0xff0000, FIXRGB(vtcurs[2]), VTSCALING);
+    /* bad idea now line editing is in
+    canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c-192, (uint32_t)0xff0000, FIXRGB(vtcurs[2]), VTSCALING);
     canvas->pushSprite(0,0);
-    vtcurs[0] ++;
+    current_col ++; */
   }
   else
   {
@@ -463,12 +456,71 @@ void Arduino_putchar(uint8_t c)
       bg = 2;
       fg = 3;
     }
-    canvas->drawChar((vtcurs[0]-1)*vtcharsz[0], (vtcurs[1]-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
+    canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
     if((vtflags & 0x8) == 0x8)
-      canvas->drawFastHLine((vtcurs[0]-1)*vtcharsz[0], vtcurs[1]*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
+      canvas->drawFastHLine((current_col-1)*vtcharsz[0], current_row*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
     canvas->pushSprite(0,0);
-    vtcurs[0] ++;
+    current_col ++;
   }
+}
+
+char kstochar(Keyboard_Class::KeysState &s)
+{
+  if(s.enter)
+    return '\r';
+  else if(s.tab)
+    return '\t';
+  else if(s.del)
+  {
+    if(s.fn)
+      return 127; // del
+    else
+      return '\b'; // backspace
+  }
+  else if(s.word.size() > 0)
+  {
+    if(s.fn)
+    {
+      switch(s.word[0])
+      {
+        case ';':
+          return 0x81;
+        case '.':
+          return 0x82;
+        case ',':
+          return 0x83;
+        case '/':
+          return 0x84;
+        default:
+          return s.word[0];
+      }
+    }
+    else if(s.ctrl)
+    {
+      switch(s.word[0])
+      {
+        case 'a':
+        case 'A':
+        case ',':
+          return 0x98;
+        case 'e':
+        case 'E':
+        case '/':
+          return 0x92;
+        case ';':
+          return 0x9a;
+        case '.':
+          return 0x94;
+        default:
+          return s.word[0];
+      }
+    }
+    else
+    {
+      return s.word[0];
+    }
+  }
+  return 0; 
 }
 
 char Arduino_getchar()
@@ -481,55 +533,51 @@ char Arduino_getchar()
       yield();
       M5Cardputer.update();
     };
-    Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
+    char c = kstochar(M5Cardputer.Keyboard.keysState());
     lastKeyTime = millis();
-    if(s.enter)
-      return '\r';
-    else if(s.tab)
-      return '\t';
-    else if(s.del)
-      return 127;
-    else if(s.word.size() > 0)
-      return s.word[0];
-    // TODO cursor keys
+    if(c > 0)
+      return c;
   }
 }
 
 int inc( uint32_t timeout = 0 )
 {
   uint32_t timer = millis();
-WAITLOOP: M5Cardputer.update();
-  while((lastKeyTime+KEYWAIT) > millis()
+  for(;;)
+  {
+    M5Cardputer.update();
+    while((lastKeyTime+KEYWAIT) > millis()
       || (!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()
       && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))))
-  {
-    yield();
-    M5Cardputer.update();
-  };
-  lastKeyTime = millis();
-  if(timeout > 0 && ((timer + timeout*100) <= millis()))
-    return -1;
+    {
+      yield();
+      M5Cardputer.update();
+    };
+    lastKeyTime = millis();
+    if(timeout > 0 && ((timer + timeout*100) <= millis()))
+      return -1;
 
-  Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
-  uint8_t c = 0;
-  if(s.word.size() > 0)
-    c = s.word[0];
+    uint8_t c = kstochar(M5Cardputer.Keyboard.keysState());
 
-  if(s.enter)
-  {
-    Arduino_putchar('\r'); // maybe??
-    Arduino_putchar('\n'); // maybe??
-    return '\r';
+    if(c == '\r' || c == '\n')
+    {
+      Arduino_putchar('\r'); // maybe??
+      Arduino_putchar('\n'); // maybe??
+      return '\r';
+    }
+    else if(c == '\b')
+    {
+      // don't echo bksp now, wait for line
+      // editor to handle it
+      return c;
+    }
+    else if(c > 0)
+    {
+      // some other cardputer key
+      Arduino_putchar(c);
+      return c;
+    }
   }
-  else if(s.tab)
-    return '\t';
-  else if(s.del)
-    return 127;
-  else if(c == 0) // some other cardputer key
-    goto WAITLOOP;
-
-  Arduino_putchar(c);
-  return c;
 }
 
 static int uninc( int c )
@@ -571,14 +619,13 @@ void initialize_screen(  )
    JTERP = INTERP_UNIX;
 
 // command history not implemented
-/*
    commands = ( char * ) malloc( hist_buf_size * sizeof ( char ) );
 
    if ( commands == NULL )
       fatal( "initialize_screen(): Couldn't allocate history buffer." );
    BUFFER_SIZE = hist_buf_size;
    space_avail = hist_buf_size - 1;
-*/
+
    interp_initialized = 1;
 
 }                               /* initialize_screen */
@@ -762,7 +809,7 @@ static void display_string( char *s )
 void display_char( int c )
 {
    outc( c );
-   if ( ++current_col > screen_cols )
+   if ( current_col > screen_cols )
       current_col = screen_cols;
 }                               /* display_char */
 
@@ -785,7 +832,7 @@ void scroll_line(  )
    }
 
    current_col = 1;
-   if ( ++current_row > screen_rows )
+   if ( current_row > screen_rows )
       current_row = screen_rows;
 
 }                               /* scroll_line */
@@ -797,7 +844,7 @@ int input_line( int buflen, char *buffer, int timeout, int *read_size )
   *read_size = 0;
   while ( ( c = read_char(timeout) ) != '\r' ) // use for Arduino line feed
   {
-    if(c == 127) // backspace pressed?
+    if(c == '\b') // backspace pressed?
     {
       if(*read_size > 0)
       {
@@ -812,7 +859,6 @@ int input_line( int buflen, char *buffer, int timeout, int *read_size )
     else if ( *read_size < buflen )
       buffer[( *read_size )++] = c;
   }
-  text_col = 0;
   yield();
   return c;
 }                               /* input_line */
@@ -881,8 +927,8 @@ static int read_key( int mode )
       while ( !( c == 27 || c == 10 || c == 13 || c == 8 ) && ( c < 32 || c > 127 ) );
    }
 
-   if ( c == 127 )
-      c = '\b';
+   //if ( c == 127 )
+   //   c = '\b';
    else if ( c == 10 )
       c = 13;
 
@@ -988,3 +1034,436 @@ int codes_to_text( int c, char *s )
    }
    return 1;
 }                               /* codes_to_text */
+
+/*
+ * Previous command system
+ *
+ * Here's how this works:
+ *
+ * The previous command buffer is BUFFER_SIZE bytes long. After the player
+ * presses Enter, the command is added to this buffer, with a trailing '\n'
+ * added. The '\n' is used to show where one command ends and another begins.
+ *
+ * The up arrow key retrieves a previous command. This is done by working
+ * backwards through the buffer until a '\n' is found. The down arrow
+ * retieves the next command by counting forward. The ptr1 and ptr2
+ * values hold the start and end of the currently displayed command.
+ *
+ * PgUp displays the first ("oldest") command, while PgDn displays a blank
+ * prompt.
+ */
+int display_command( char *buffer )
+{
+   int counter, loop;
+
+   move_cursor( row, head_col );
+   //XXX tputs (CE, 1, outc);  /* fix scoll bug w/ command history */
+
+   /* ptr1 = end_ptr when the player has selected beyond any previously
+    * saved command.
+    */
+
+   if ( ptr1 == end_ptr )
+   {
+      return ( 0 );
+   }
+   else
+   {
+      /* Put the characters from the save buffer into the variable "buffer".
+       * The return value (counter) is the value of *read_size.
+       */
+
+      counter = 0;
+      for ( loop = ptr1; loop <= ptr2; loop++ )
+      {
+         buffer[counter] = commands[loop];
+         display_char( buffer[counter++] );
+      }
+      return ( counter );
+   }
+}                               /* display_command */
+
+void get_prev_command(  )
+{
+   /* Checking to see if ptr1 > 0 prevents moving ptr1 and ptr2 into
+    * never-never land.
+    */
+
+   if ( ptr1 > 0 )
+   {
+      /* Subtract 2 to jump over any intervening '\n' */
+
+      ptr2 = ptr1 -= 2;
+
+      /* If we've jumped too far, fix it */
+
+      if ( ptr1 < 0 )
+         ptr1 = 0;
+      if ( ptr2 < 0 )
+         ptr2 = 0;
+
+      if ( ptr1 > 0 )
+      {
+         do
+
+            /* Decrement ptr1 until a '\n' is found */
+
+            ptr1--;
+         while ( ( ptr1 >= 0 ) && ( commands[ptr1] != '\n' ) );
+
+         /* Then advance back to the position after the '\n' */
+
+         ptr1++;
+      }
+   }
+}                               /* get_prev_command */
+
+void get_next_command(  )
+{
+   if ( ptr2 < end_ptr )
+   {
+      /* Add 2 to advance over any intervening '\n' */
+
+      ptr1 = ptr2 += 2;
+      if ( ptr2 >= end_ptr )
+      {
+         ptr1 = ptr2 = end_ptr;
+      }
+      else
+      {
+         do
+            ptr2++;
+         while ( ( commands[ptr2] != '\n' ) && ( ptr2 <= end_ptr ) );
+         ptr2--;
+      }
+   }
+}                               /* get_next_command */
+
+void get_first_command(  )
+{
+
+   if ( end_ptr > 1 )
+   {
+      ptr1 = ptr2 = 0;
+      do
+         ptr2++;
+      while ( commands[ptr2] != '\n' );
+      ptr2--;
+   }
+}                               /* get_first_command */
+
+void delete_command(  )
+{
+
+   /* Deletes entire commands from the beginning of the command buffer */
+
+   int loop;
+
+   /* Keep moving the characters in the command buffer one space to the left
+    * until a '\n' is found...
+    */
+
+   do
+   {
+      for ( loop = 1; loop < end_ptr; loop++ )
+      {
+         commands[loop - 1] = commands[loop];
+      }
+      end_ptr--;
+      space_avail++;
+
+   }
+   while ( commands[0] != '\n' );
+
+   /* ...then delete the '\n' */
+
+   for ( loop = 1; loop < end_ptr; loop++ )
+   {
+      commands[loop - 1] = commands[loop];
+   }
+   end_ptr--;
+   space_avail++;
+   ptr1 = ptr2 = end_ptr;
+
+}                               /* delete_command */
+
+void add_command( char *buffer, int size )
+{
+   int loop, counter;
+
+   /* Add the player's last command to the command buffer */
+
+   counter = 0;
+   for ( loop = end_ptr; loop < ( end_ptr + size ); loop++ )
+   {
+      commands[loop] = buffer[counter++];
+   }
+
+   /* Add one space for '\n' */
+
+   end_ptr += size + 1;
+   ptr1 = ptr2 = end_ptr;
+   commands[end_ptr - 1] = '\n';
+   space_avail -= size + 1;
+
+}                               /* add_command */
+
+
+int XXX_input_line( int buflen, char *buffer, int timeout, int *read_size )
+{
+   int c, col;
+   int init_char_pos, curr_char_pos;
+   int loop, tail_col;
+   int keyfunc = 0;
+   int start_col = 1;
+
+   /*
+    * init_char_pos : the initial cursor location
+    * curr_char_pos : the current character position within the input line
+    * head_col: the head of the input line (used for cursor position)
+    *  (global variable)
+    * tail_col: the end of the input line (used for cursor position)
+    */
+
+   get_cursor_position( &row, &col );
+   head_col = start_col;
+   tail_col = start_col + *read_size;
+
+   init_char_pos = curr_char_pos = col - start_col;
+
+   ptr1 = ptr2 = end_ptr;
+
+   for ( ;; )
+   {
+      yield();
+
+      keyfunc = 0;
+
+      /* Read a single keystroke */
+      c = read_char( timeout );
+      if(c == -1) return -1;
+
+      /****** Previous Command Selection Keys ******/
+
+      //if ( line_editing )
+      //{
+         if ( c == 0x81 )
+         {                   /* Up arrow */
+            get_prev_command(  );
+            curr_char_pos = *read_size = display_command( buffer );
+            tail_col = head_col + *read_size;
+            keyfunc = 1;
+         }
+         else if ( c == 0x82 )
+         {                   /* Down arrow */
+            get_next_command(  );
+            curr_char_pos = *read_size = display_command( buffer );
+            tail_col = head_col + *read_size;
+            keyfunc = 1;
+         }
+         else if ( c == 0x9a )
+         {                   /* PgUp */
+            get_first_command( );
+            curr_char_pos = *read_size = display_command( buffer );
+            tail_col = head_col + *read_size;
+            keyfunc = 1;
+         }
+         else if (c == 0x94 || c == 27)
+         {                   /* PgDn or Esc */
+             ptr1 = ptr2 = end_ptr;
+             curr_char_pos = *read_size = display_command( buffer );
+             tail_col = head_col + *read_size;
+             keyfunc = 1;
+         }
+
+         /****** Cursor Editing Keys ******/
+
+         else if ( c == 0x83 )
+         {                   /* Left arrow */
+            get_cursor_position( &row, &col );
+
+            /* Prevents moving the cursor into the prompt */
+
+            if ( col > head_col )
+            {
+               move_cursor( row, --col );
+               curr_char_pos--;
+            }
+            keyfunc = 1;
+         }
+         else if ( c == 0x84 )
+         {                   /* Right arrow */
+            get_cursor_position( &row, &col );
+
+            /* Prevents moving the cursor beyond the end of the input line */
+
+            if ( col < tail_col )
+            {
+               move_cursor( row, ++col );
+               curr_char_pos++;
+            }
+            keyfunc = 1;
+         }
+         else if ( c == 0x92 )
+         {                   /* End */
+            move_cursor( row, tail_col );
+            curr_char_pos = init_char_pos + *read_size;
+            keyfunc = 1;
+         }
+         else if ( c == 0x98 )
+         {                   /* Home */
+            move_cursor( row, head_col );
+            curr_char_pos = init_char_pos;
+            keyfunc = 1;
+         }
+         else if ( c == 0x7f )
+         {                   /* Delete */
+            if ( curr_char_pos < *read_size )
+            {
+               get_cursor_position ( &row, &col );
+ 
+               for ( loop = curr_char_pos; loop < *read_size; loop++ )
+               {
+                  buffer[loop] = buffer[loop + 1];
+               }
+ 
+               tail_col--;
+               ( *read_size )--;
+ 
+               for ( loop = curr_char_pos; loop < *read_size; loop++ )
+               {
+                  display_char( buffer[loop] );
+               }
+ 
+               display_char( ' ' );
+
+               move_cursor( row, col );
+            }
+            keyfunc = 1;
+         }
+      //}
+      if ( !keyfunc )
+      {
+         if ( c >= 0x81 && c <= 0x9a )
+         {
+            int addr = get_word( H_FUNCTION_KEYS_OFFSET );
+            if ( h_type >= V5 && addr > 0 )
+            {
+               int t;
+               /* Check for game specific terminating character */
+               while ( ( t = get_byte( addr++ ) ) != 0 )
+               {
+                  if ( t == c || t == 255 )
+                  {
+                     move_cursor( row, tail_col );
+                     return c;
+                  }
+               }
+            }
+         }
+         else if ( c == '\b' || c == 0x7f )     /* Backspace or Delete */
+         {
+            get_cursor_position( &row, &col );
+            if ( col > head_col )
+            {
+               move_cursor( row, --col );
+               for ( loop = curr_char_pos; loop < *read_size; loop++ )
+               {
+                  buffer[loop - 1] = buffer[loop];
+                  display_char( buffer[loop - 1] );
+               }
+               display_char( ' ' );
+               curr_char_pos--;
+               tail_col--;
+               ( *read_size )--;
+               move_cursor( row, col );
+            }
+         }
+         else if ( c != 27 )
+         {
+            /* Normal key action */
+            if ( *read_size == ( buflen - 1 ) )
+            {
+               /* Ring bell if buffer is full */
+               // TODO outc( BELL );
+            }
+            else
+            {
+               /* Scroll line if return key pressed */
+               if ( c == '\r' || c == '\n' )
+               {
+                  c = '\n';
+                  move_cursor( row, tail_col );
+                  scroll_line(  );
+               }
+
+               if ( c == '\n' )
+               {
+                  /* Add the current command to the command buffer */
+                  if ( *read_size > space_avail )
+                  {
+                     do
+                        delete_command(  );
+                     while ( *read_size > space_avail );
+                  }
+                  if ( *read_size > 0 )
+                     add_command( buffer, *read_size );
+
+                  /* Return key if it is a line terminator */
+                  return ( c );
+               }
+               else
+               {
+                  get_cursor_position( &row, &col );
+
+                  /* Used if the cursor is not at the end of the line */
+                  if ( col < tail_col )
+                  {
+                     /* Moves the input line one character to the right */
+                     for ( loop = *read_size; loop >= curr_char_pos; loop-- )
+                     {
+                        buffer[loop + 1] = buffer[loop];
+                     }
+
+                     /* Puts the character into the space created by the
+                      * "for" loop above */
+                     buffer[curr_char_pos] = ( char ) c;
+
+                     /* Increment the end of the line values */
+
+                     ( *read_size )++;
+                     tail_col++;
+
+                     /* Move the cursor back to its original position */
+
+                     move_cursor( row, col );
+
+                     /* Redisplays the input line from the point of
+                      * insertion */
+
+                     for ( loop = curr_char_pos; loop < *read_size; loop++ )
+                     {
+                        display_char( buffer[loop] );
+                     }
+
+                     /* Moves the cursor to the next position */
+
+                     move_cursor( row, ++col );
+                     curr_char_pos++;
+                  }
+                  else
+                  {
+                     /* Used if the cursor is at the end of the line */
+                     buffer[curr_char_pos++] = ( char ) c;
+                     display_char( c );
+                     ( *read_size )++;
+                     tail_col++;
+                  }
+               }
+            }
+         }
+      }
+   }
+}                               /* input_line */
+
+
