@@ -74,6 +74,11 @@ extern ZINT16 default_bg;
 static void display_string( char * );
 static int read_char( int timeout );
 
+#define VTFLAG_BOLD 0x1
+#define VTFLAG_UL 0x2
+#define VTFLAG_INV 0x4
+#define VTFLAG_CURS 0x8
+
 #define VTSCALING 1.0
 #define KEYWAIT 180
 LGFX_Sprite *canvas;
@@ -108,6 +113,9 @@ void Arduino_init()
 
   // TODO WHY?
   canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0]+1)*vtcharsz[1], themes[theme].bg);
+
+  // command history buffer
+  hist_buf_size = 4096;
 }
 
 bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
@@ -212,6 +220,24 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
               break;
           }
           return true;
+        case 'h':
+          if(param_len != 2)
+            return false;
+          switch(params[1])
+          {
+            case 25: // cursor visible
+              vtflags |= VTFLAG_CURS;
+          }
+          return true;
+        case 'l':
+          if(param_len != 2)
+            return false;
+          switch(params[1])
+          {
+            case 25: // cursor invisible
+              vtflags &= 0xffff ^ VTFLAG_CURS;
+          }
+          return true;
         case 'L':
         case 'M':
           // TODO SCROLLING NEXT!!!
@@ -226,17 +252,23 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
                 vtcurs[3] = themes[theme].bg; // bg
                 vtflags = 0x0;
                 break;
+              case 1:
+                vtflags |= VTFLAG_BOLD;
+                break;
+              case 21:
+                vtflags &= (0xffff ^ VTFLAG_BOLD);
+                break;
               case 4:
-                vtflags |= 0x8;
+                vtflags |= VTFLAG_UL;
                 break;
               case 24:
-                vtflags &= (0xffff ^ 0x8);
+                vtflags &= (0xffff ^ VTFLAG_UL);
                 break;
               case 7:
-                vtflags |= 0x20;
+                vtflags |= VTFLAG_INV;
                 break;
               case 27:
-                vtflags &= (0xffff ^ 0x20);
+                vtflags &= (0xffff ^ VTFLAG_INV);
                 break;
               case 30:
                 vtcurs[2] = RGB565(0,0,0); //TFT_BLACK;
@@ -450,17 +482,18 @@ void Arduino_putchar(uint8_t c)
   {
     uint8_t bg = 3;
     uint8_t fg = 2;
-    if((vtflags & 0x20) == 0x20)
+    if((vtflags & VTFLAG_INV) == VTFLAG_INV)
     {
       // inverse video
       bg = 2;
       fg = 3;
     }
-    canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
-    if((vtflags & 0x8) == 0x8)
+    if((vtflags & VTFLAG_UL) == VTFLAG_UL)
       canvas->drawFastHLine((current_col-1)*vtcharsz[0], current_row*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
-    canvas->pushSprite(0,0);
+    canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
     current_col ++;
+
+    canvas->pushSprite(0,0);
   }
 }
 
@@ -574,7 +607,8 @@ int inc( uint32_t timeout = 0 )
     else if(c > 0)
     {
       // some other cardputer key
-      Arduino_putchar(c);
+      //no local echo with line editing
+      //Arduino_putchar(c);
       return c;
     }
   }
@@ -618,7 +652,6 @@ void initialize_screen(  )
    h_interpreter = INTERP_MSDOS;
    JTERP = INTERP_UNIX;
 
-// command history not implemented
    commands = ( char * ) malloc( hist_buf_size * sizeof ( char ) );
 
    if ( commands == NULL )
@@ -837,7 +870,7 @@ void scroll_line(  )
 
 }                               /* scroll_line */
 
-int input_line( int buflen, char *buffer, int timeout, int *read_size )
+int XXX_input_line( int buflen, char *buffer, int timeout, int *read_size )
 {
   int c;
   yield();
@@ -1209,13 +1242,13 @@ void add_command( char *buffer, int size )
 }                               /* add_command */
 
 
-int XXX_input_line( int buflen, char *buffer, int timeout, int *read_size )
+int input_line( int buflen, char *buffer, int timeout, int *read_size )
 {
    int c, col;
    int init_char_pos, curr_char_pos;
    int loop, tail_col;
    int keyfunc = 0;
-   int start_col = 1;
+   int start_col = 2; // allows for the prompt
 
    /*
     * init_char_pos : the initial cursor location
@@ -1400,6 +1433,7 @@ int XXX_input_line( int buflen, char *buffer, int timeout, int *read_size )
                if ( c == '\n' )
                {
                   /* Add the current command to the command buffer */
+
                   if ( *read_size > space_avail )
                   {
                      do
