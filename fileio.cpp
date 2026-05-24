@@ -217,13 +217,13 @@ void open_story( const char *storyname )
       set_names( storyname );   
       return;                   
    }                            
-   Serial.println(String(tmp) + String(" does not exist"));
+   //Serial.println(String(tmp) + String(" does not exist"));
 
 // assume Zcode file is in root folder for Arduino
       sprintf( tmp, "\\%s", storyname );
       if (SD.exists(tmp))
       {
-        Serial.println(String(tmp) + String(" exists"));
+        //Serial.println(String(tmp) + String(" exists"));
         gfp = SD.open( tmp, FILE_READ);                            
 #if defined BUFFER_FILES        
 #ifndef USE_ZLIB
@@ -234,7 +234,7 @@ void open_story( const char *storyname )
          return;
 
       }
-    Serial.println(String(tmp) + String(" does not exist"));
+    //Serial.println(String(tmp) + String(" does not exist"));
 
    fatal( "open_story(): Zcode file not found" );
 }                               /* open_story */

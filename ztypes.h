@@ -571,6 +571,7 @@ void report_strictz_error( int, const char * );
 void Arduino_putchar(uint8_t c);
 char Arduino_getchar();
 void Arduino_init();
+void Arduino_debug(const char* s, char level='X');
 
 /* control.c */
 
@@ -817,7 +818,6 @@ void z_push( zword_t );
 #define FILE_CREATE FILE_WRITE
 #define STATUS_ATTR (F_WHITE | B_BLUE | A_BOLD)
 #define TEXT_ATTR (F_GREEN | B_BLACK)
-#define erase clear
 
 typedef struct ztheme
 {

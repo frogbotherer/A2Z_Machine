@@ -24,11 +24,10 @@ ztheme_t themes[] = {
   {"Amstrad Blue and Gold", RGB565(0,0,85), RGB565(170,85,0)}
 };
 int themecount = sizeof(themes)/sizeof(themes[0]);
+int theme = 2;
 
-extern int theme;
 #define EXTENDED 1
 #define PLAIN    2
-
 
 #ifdef HARD_COLORS
 static ZINT16 current_fg;
@@ -81,7 +80,7 @@ static int read_char( int timeout );
 
 #define VTSCALING 1.0
 #define KEYWAIT 180
-LGFX_Sprite *canvas;
+LGFX_Sprite *canvas, *canvas_cursor, *canvas_debug;
 uint32_t lastKeyTime;
 static uint8_t vtbuf[16]; // for ansi escapes
 static uint8_t *vtbufp;
@@ -92,6 +91,10 @@ uint16_t vtflags;
 
 void Arduino_init()
 {
+
+  canvas_debug = new LGFX_Sprite(&M5Cardputer.Display);
+  canvas_debug->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
+
   canvas = new LGFX_Sprite(&M5Cardputer.Display);
   canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height()+1); // shutup
   canvas->setBaseColor(themes[theme].bg);
@@ -100,7 +103,7 @@ void Arduino_init()
   //canvas->setTextSize(VTSCALING);
   vtcharsz[0] = canvas->textWidth("M");
   vtcharsz[1] = canvas->fontHeight();
-  vtscroll[0] = 2; // TODO 1
+  vtscroll[0] = 2; // allow for status line
   vtscroll[1] = DEFAULT_ROWS;
   vtbuf[0] = 0;
   vtbufp = vtbuf;
@@ -111,11 +114,65 @@ void Arduino_init()
   vtflags = 0x0;
   lastKeyTime = 0;
 
-  // TODO WHY?
+  // initialise scroll region with status line
   canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0]+1)*vtcharsz[1], themes[theme].bg);
 
   // command history buffer
   hist_buf_size = 4096;
+
+  // cursor rendering
+  canvas_cursor = new LGFX_Sprite(&M5Cardputer.Display);
+  canvas_cursor->createSprite(vtcharsz[0], vtcharsz[1]);
+}
+
+void Arduino_deinit()
+{
+  Arduino_debug("deinit called");
+  canvas->deleteSprite();
+  canvas_cursor->deleteSprite();
+  canvas_debug->deleteSprite();
+
+  delete canvas;
+  delete canvas_cursor;
+  delete canvas_debug;
+}
+
+void Arduino_debug(const char *s, char level)
+{
+  if(level=='X') return;
+  switch(level)
+  {
+    case 'I':
+      canvas_debug->setTextColor(0x00ff00);
+      break;
+    case 'W':
+      canvas_debug->setTextColor(0xa08000);
+      break;
+    case 'E':
+      canvas_debug->setTextColor(0xff0000);
+      break;
+    default:
+      canvas_debug->setTextColor(0xa0a0a0);
+      break;
+  }
+  canvas_debug->print(level);
+  canvas_debug->setTextColor(0xffffff);
+  canvas_debug->print(": ");
+  canvas_debug->println(s);
+  canvas_debug->pushSprite(0,0);
+  yield();
+  if(level == 'D')
+    delay(500);
+}
+
+void push_sprites()
+{
+  canvas->pushSprite(0, 0);
+  if((vtflags & VTFLAG_CURS) == VTFLAG_CURS)
+  {
+    canvas_cursor->fillRect(0, 0, vtcharsz[0], vtcharsz[1], themes[theme].fg);
+    canvas_cursor->pushSprite((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1]);
+  }
 }
 
 bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
@@ -190,8 +247,11 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           if(buf[2] == '2')
           {
             // clear screen
-            canvas->deleteSprite();
-            Arduino_init();
+            //Arduino_deinit();
+            //Arduino_init();
+            canvas->clear(themes[theme].bg);
+            current_row = 1;
+            current_col = 1;
             return true;
           }
           else
@@ -221,7 +281,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           }
           return true;
         case 'h':
-          if(param_len != 2)
+          if(param_len < 2)
             return false;
           switch(params[1])
           {
@@ -230,7 +290,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           }
           return true;
         case 'l':
-          if(param_len != 2)
+          if(param_len < 2)
             return false;
           switch(params[1])
           {
@@ -412,7 +472,6 @@ void Arduino_putchar(uint8_t c)
   {
     // -1 being returned from other fns, this is a bug
     canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], '!', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
-    canvas->pushSprite(0,0);
   }
   else if(c == '\033')
   {
@@ -431,7 +490,7 @@ void Arduino_putchar(uint8_t c)
       // end of escape, handle it
       if(handle_vt(vtbuf, c))
       {
-        canvas->pushSprite(0,0);
+        //canvas->pushSprite(0,0);
       }
       vtbuf[0] = 0;
     }
@@ -453,7 +512,6 @@ void Arduino_putchar(uint8_t c)
         {
           // scroll scrolling region up one
           canvas->scroll(0, -vtcharsz[1]);
-          canvas->pushSprite(0,0);
         }
         break;
       case '\b':
@@ -462,21 +520,16 @@ void Arduino_putchar(uint8_t c)
         {
           current_col --;
           canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
-          canvas->pushSprite(0,0);
         }
         break;
       default:
         canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], '?', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
-        canvas->pushSprite(0,0);
         break;
     }
   }
   else if(c >= 127)
   {
-    /* bad idea now line editing is in
-    canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c-192, (uint32_t)0xff0000, FIXRGB(vtcurs[2]), VTSCALING);
-    canvas->pushSprite(0,0);
-    current_col ++; */
+    /* bad idea now line editing is in */
   }
   else
   {
@@ -493,8 +546,8 @@ void Arduino_putchar(uint8_t c)
     canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
     current_col ++;
 
-    canvas->pushSprite(0,0);
   }
+  //push_sprites();
 }
 
 char kstochar(Keyboard_Class::KeysState &s)
@@ -558,6 +611,7 @@ char kstochar(Keyboard_Class::KeysState &s)
 
 char Arduino_getchar()
 {
+  push_sprites();
   for(;;)
   {
     M5Cardputer.update(); // must be in AND out of loop
@@ -576,6 +630,7 @@ char Arduino_getchar()
 int inc( uint32_t timeout = 0 )
 {
   uint32_t timer = millis();
+  push_sprites();
   for(;;)
   {
     M5Cardputer.update();
@@ -681,7 +736,7 @@ void reset_screen(  )
 
       //printf( "[0m" );
 
-      erase(  );
+      clear(); //erase(  );
       //set_cbreak_mode( 0 );
 
    }
@@ -691,7 +746,7 @@ void reset_screen(  )
 
 void clear_screen(  )
 {
-   erase(  );                   /* clear screen */
+   clear(); //erase(  );                   /* clear screen */
    current_row = 1;
    current_col = 1;
 }                               /* clear_screen */

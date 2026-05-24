@@ -130,7 +130,7 @@ int interpret(  )
             //         operand[0], operand[1], operand[2] );
             sprintf( debugbuff, "PC = 0x%08lx   Op%s = 0x%02x   %d, %d, %d\n", pc, "(EX)", opcode,
                      operand[0], operand[1], operand[2] );
-            Serial.println(debugbuff);
+            //Serial.println(debugbuff);
 
 #endif
             //Serial.print("Debug 5: switch opcode ");Serial.println((int)opcode,HEX);delay(50);
@@ -173,7 +173,7 @@ int interpret(  )
             //         operand[0], operand[1], operand[2] );
             sprintf( debugbuff, "PC = 0x%08lx   Op%s = 0x%02x   %d, %d, %d\n", pc, "(2+)", opcode,
                      operand[0], operand[1], operand[2] );
-            Serial.println(debugbuff);
+            //Serial.println(debugbuff);
 
 #endif
             //Serial.print("Debug 5b, switch opcode: ");Serial.println((int)opcode,HEX);delay(50);
@@ -383,7 +383,7 @@ int interpret(  )
             //         operand[0] );
             sprintf( debugbuff, "PC = 0x%08lx   Op%s = 0x%02x   %d\n", pc, "(1 )", opcode,
                      operand[0] );
-            Serial.println(debugbuff);
+            //Serial.println(debugbuff);
 
 #endif
             //Serial.print("Debug 7b: switch opcode "); Serial.println((int)opcode & 0x0f, HEX);delay(50);
@@ -450,7 +450,7 @@ int interpret(  )
 #ifdef DEBUG_TERPRE
             //fprintf( stderr, "PC = 0x%08lx   Op%s = 0x%02x\n", pc, "(0 )", opcode );
             sprintf( debugbuff, "PC = 0x%08lx   Op%s = 0x%02x\n", pc, "(0 )", opcode );
-            Serial.println(debugbuff);
+            //Serial.println(debugbuff);
 #endif
             //Serial.print("Debug 8, switch opcode: ");Serial.println((int)opcode & 0x0f,HEX);delay(50);
             switch ( ( char ) opcode & 0x0f )

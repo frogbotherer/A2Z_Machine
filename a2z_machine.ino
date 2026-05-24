@@ -17,10 +17,7 @@ char **storyfilelist;
 
 extern ztheme_t themes[];
 extern int themecount;
-
-int theme = 2; // default theme
-
-LGFX_Sprite *tcanvas;
+extern int theme;
 
 // sort an array of filenames
 void filesort(char **a, int size) {
@@ -62,13 +59,11 @@ char **getDirectory(File &dir)
   char *filebuffptr = filebuff;
   static char* dirlist[MAXFILELIST]; // max file list size
   int dirlistcount = 0;
-  tcanvas->println(String("getDirectory(): looking in " + String(dir.name())).c_str());
-  tcanvas->pushSprite(0,0);
+  Arduino_debug(String("getDirectory(): looking in " + String(dir.name())).c_str(), 'I');
   
   if(!dir.isDirectory())
   {
-    tcanvas->println(String("getDirectory(): not a valid folder / " + String(dir.name())).c_str());
-    tcanvas->pushSprite(0,0);
+    Arduino_debug(String("getDirectory(): not a valid folder / " + String(dir.name())).c_str(), 'E');
     fatal(String("getDirectory(): not a valid folder / " + String(dir.name())).c_str());
   }
 
@@ -97,18 +92,18 @@ char **getDirectory(File &dir)
     }
     //entry.close();
   }
-  tcanvas->println("got file list");
-  tcanvas->pushSprite(0,0);
-   filesort(dirlist,dirlistcount);
-   return dirlist;
+  Arduino_debug("got file list", 'I');
+  filesort(dirlist,dirlistcount);
+  return dirlist;
 }
 
 void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
 {
-  tcanvas->println("INFO: displayA2ZScreen()");
-  tcanvas->pushSprite(0,0);
+  Arduino_debug("displayA2ZScreen()", 'I');
   attrset(A_NORMAL);
-  erase();
+  Arduino_debug("attrset ok");
+  clear();
+  Arduino_debug("erase ok");
   // top line
   attrset(A_REVERSE);
   int col;
@@ -130,6 +125,7 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   yield();
   mvaddstr_P ( DEFAULT_ROWS - 1, 1, "See: https://DanTheGeek.com/a2zmachine");
   yield();
+  Arduino_debug("drawing stories");
   // show stories
   move(5,0);
   for(int i = 0 ; i < count; i++)
@@ -145,6 +141,7 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   }
 
   move(7+(count/2),1);
+  Arduino_debug("done");
 }
 
 static bool showA2ZScreen(int &storynum)
@@ -153,8 +150,7 @@ static bool showA2ZScreen(int &storynum)
 
   if ( initscr(  ) )
   {
-    tcanvas->println("curses failed");
-    tcanvas->pushSprite(0,0);
+    Arduino_debug("curses failed", 'E');
 
     fatal( "initialize_screen(): Couldn't init curses." );
   }
@@ -164,20 +160,18 @@ static bool showA2ZScreen(int &storynum)
 
   int x = 0, y = 0, count = 0;
 
-  tcanvas->println("INFO: getting stories from SD");
-  tcanvas->pushSprite(0,0);
+  Arduino_debug("getting stories from SD", 'I');
 
   File d = SD.open(GAMEPATH);
   if(d)
   {
     storyfilelist = getDirectory(d);
-    tcanvas->println("INFO: got list from SD");
+    Arduino_debug("got list from SD", 'I');
   }
   else
   {
-    tcanvas->println("WARN: couldn't open GAMEDIR");
+    Arduino_debug("couldn't open GAMEDIR", 'W');
   }
-  tcanvas->pushSprite(0,0);
   d.close();
 
   while(storyfilelist[count] != NULL && count < MAXFILELIST)
@@ -214,16 +208,16 @@ static bool showA2ZScreen(int &storynum)
   }
   displayA2ZScreen(filenames, count, storynum);
 
-  /*
+  Arduino_debug("menu rendered", 'I');
   if(count == 0)
   {
-    Serial.print("No stories found [press any key to try again]");
-    while (!Serial.available()){yield();};
-    Serial.read();
-    Serial.println();
+    Arduino_debug("No stories found", 'E');
+    Arduino_debug("Put some in /atoz/games", 'E');
+    Arduino_debug("Then reset or press a key", 'E');
+    Arduino_getchar();
     return false;
-  } */
-  //tcanvas->println("INFO: trying to do clever stuff");
+  }
+
   while(1)
   {
     int keystroke = Arduino_getchar();
@@ -236,7 +230,6 @@ static bool showA2ZScreen(int &storynum)
         y = storynum / 2;
         attrset(A_NORMAL);
         mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-        yield();
         storynum = (storynum+1)%count;
         x = storynum % 2;
         y = storynum / 2;
@@ -298,16 +291,13 @@ static bool showA2ZScreen(int &storynum)
         break;
       case 't': // change theme
         theme = (theme + 1 ) %themecount;
-        //displayA2ZScreen(filenames, count, storynum);
         return false;
-        break;
       case '\r': // return
       case '\n':
         curs_set(1);
         return true;
       case 'r': // refresh
         return false;
-        break;
       default: // first letter of filename?
         if(isalnum(keystroke))
         {
@@ -330,11 +320,10 @@ static bool showA2ZScreen(int &storynum)
             }
           }
         }
-        break;
-    }
+        break; /* default */
+    } /* switch */
   }
-  curs_set(1);
-  return true;
+  return false;
 }
 
 static void configure( zbyte_t min_version, zbyte_t max_version )
@@ -350,10 +339,6 @@ static void configure( zbyte_t min_version, zbyte_t max_version )
    if ( h_type < min_version || h_type > max_version ||
         ( get_byte( H_CONFIG ) & CONFIG_BYTE_SWAPPED ) )
       fatal( "Wrong game or version" );
-   /*
-    * if (h_type == V6 || h_type == V7)
-    * fatal ("Unsupported zcode version.");
-    */
 
    if ( h_type < V4 )
    {
@@ -425,9 +410,6 @@ void setup()
   auto cfg = M5.config();
   M5Cardputer.begin(cfg, true);  // enableKeyboard
 
-  // init serial
-  Serial.begin(115200);
-
   // init sd card -- from the example
   SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
   SD.begin(SD_SPI_CS_PIN, SPI, 25000000);
@@ -439,18 +421,13 @@ void setup()
   M5Cardputer.Display.setTextFont(&fonts::FreeMono9pt7b);
   M5Cardputer.Display.setColorDepth(16);
 
-  // debugging purposes
-  tcanvas = new LGFX_Sprite(&M5Cardputer.Display);
-  tcanvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
-  tcanvas->setTextScroll(false);
-
   Arduino_init();
+  Arduino_debug("initialised", 'I');
 }
 
 void loop()
 {
-  tcanvas->println("cwwozere");
-  tcanvas->pushSprite(0,0);
+  Arduino_debug("starting up...", 'I');
   static int storynum = 0;
   // This loops once per game
   while(!showA2ZScreen(storynum)) yield();
@@ -460,12 +437,12 @@ void loop()
 
   sprintf(storyfile,"%s/%s",GAMEPATH, storyfilelist[storynum]);
 
-  delay(500);
   open_story(storyfile);
   configure((zbyte_t) V1, (zbyte_t) V8 );
   initialize_screen(  );
   load_cache();
   z_restart(  );
+  Arduino_debug("starting interpreter", 'I');
   ( void ) interpret(  );
   unload_cache(  );
   close_story(  );
