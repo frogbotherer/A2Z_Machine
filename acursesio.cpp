@@ -143,20 +143,20 @@ void Arduino_debug(const char *s, char level)
   switch(level)
   {
     case 'I':
-      canvas_debug->setTextColor(0x00ff00);
+      canvas_debug->setTextColor(TFT_GREEN);
       break;
     case 'W':
-      canvas_debug->setTextColor(0xa08000);
+      canvas_debug->setTextColor(TFT_YELLOW);
       break;
     case 'E':
-      canvas_debug->setTextColor(0xff0000);
+      canvas_debug->setTextColor(TFT_RED);
       break;
     default:
-      canvas_debug->setTextColor(0xa0a0a0);
+      canvas_debug->setTextColor(TFT_GRAY);
       break;
   }
   canvas_debug->print(level);
-  canvas_debug->setTextColor(0xffffff);
+  canvas_debug->setTextColor(TFT_WHITE);
   canvas_debug->print(": ");
   canvas_debug->println(s);
   canvas_debug->pushSprite(0,0);
@@ -170,7 +170,7 @@ void push_sprites()
   canvas->pushSprite(0, 0);
   if((vtflags & VTFLAG_CURS) == VTFLAG_CURS)
   {
-    canvas_cursor->fillRect(0, 0, vtcharsz[0], vtcharsz[1], themes[theme].fg);
+    canvas_cursor->fillRect(0, 0, vtcharsz[0], vtcharsz[1], 0xffffff);//themes[theme].fg);
     canvas_cursor->pushSprite((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1]);
   }
 }
@@ -247,8 +247,6 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
           if(buf[2] == '2')
           {
             // clear screen
-            //Arduino_deinit();
-            //Arduino_init();
             canvas->clear(themes[theme].bg);
             current_row = 1;
             current_col = 1;
@@ -271,12 +269,12 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
               current_col = 1;
             case 'K':
             case '0':
-              for(i=current_col; i < DEFAULT_COLS; i++)
-                canvas->drawChar(i*vtcharsz[0], (current_row)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
+              for(i=current_col-1; i < DEFAULT_COLS; i++)
+                canvas->drawChar(i*vtcharsz[0], (current_row-1)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
               break;
             case '1':
               for(i=0; i < current_col; i++)
-                canvas->drawChar(i*vtcharsz[0], (current_row)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
+                canvas->drawChar(i*vtcharsz[0], (current_row-1)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
               break;
           }
           return true;
@@ -547,7 +545,6 @@ void Arduino_putchar(uint8_t c)
     current_col ++;
 
   }
-  //push_sprites();
 }
 
 char kstochar(Keyboard_Class::KeysState &s)
@@ -925,32 +922,6 @@ void scroll_line(  )
 
 }                               /* scroll_line */
 
-int XXX_input_line( int buflen, char *buffer, int timeout, int *read_size )
-{
-  int c;
-  yield();
-  *read_size = 0;
-  while ( ( c = read_char(timeout) ) != '\r' ) // use for Arduino line feed
-  {
-    if(c == '\b') // backspace pressed?
-    {
-      if(*read_size > 0)
-      {
-        buffer[(*read_size)] = '\0';
-        (*read_size)--;
-        // OK to backspace, characters still on the left side
-        Arduino_putchar(c);
-      }
-    }
-    else if ( c == -1 )
-      return -1;
-    else if ( *read_size < buflen )
-      buffer[( *read_size )++] = c;
-  }
-  yield();
-  return c;
-}                               /* input_line */
-
 #define COMMAND_LEN 20
 static int read_char( int timeout = 0 )
 {
@@ -1032,20 +1003,14 @@ static void rundown(  )
    reset_screen(  );
 }                               /* rundown */
 
-
-void set_colours( zword_t foreground, zword_t background )
-{
-  // not implemented
-}
 /* Zcolors:
  * BLACK 0   BLUE 4   GREEN 2   CYAN 6   RED 1   MAGENTA 5   BROWN 3   WHITE 7
  * ANSI Colors (foreground over background):
  * BLACK 30  BLUE 34  GREEN 32  CYAN 36  RED 31  MAGENTA 35  BROWN 33  WHITE 37
  * BLACK 40  BLUE 44  GREEN 42  CYAN 46  RED 41  MAGENTA 45  BROWN 43  WHITE 47
  */
-void set_colours_( zword_t foreground, zword_t background )
+void set_colours( zword_t foreground, zword_t background )
 {
-   return;
    int fg, bg;
 
    int fg_colour_map[] = { F_BLACK, F_BLUE, F_GREEN, F_CYAN, F_RED, F_MAGENTA, F_BROWN, F_WHITE };
@@ -1146,6 +1111,7 @@ int display_command( char *buffer )
 
    move_cursor( row, head_col );
    //XXX tputs (CE, 1, outc);  /* fix scoll bug w/ command history */
+   clrtoeol();
 
    /* ptr1 = end_ptr when the player has selected beyond any previously
     * saved command.
