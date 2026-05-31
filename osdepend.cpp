@@ -558,8 +558,10 @@ void fatal( const char *s )
    char strbuff[512];
    sprintf(strbuff, "\n**FATAL ERROR: %s", s);
    Arduino_debug(strbuff, 'E');
-   Arduino_getchar();
-   exit(1);
+   for(;;)
+   {
+     Arduino_getchar();
+   }
 }                               /* fatal */
 
 #endif /* !defined(AMIGA) */

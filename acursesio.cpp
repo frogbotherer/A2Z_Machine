@@ -77,6 +77,7 @@ static int read_char( int timeout );
 #define VTFLAG_UL 0x2
 #define VTFLAG_INV 0x4
 #define VTFLAG_CURS 0x8
+#define VTFLAG_SHIFTOUT 0x10
 
 #define VTSCALING 1.0
 #define KEYWAIT 180
@@ -94,13 +95,16 @@ void Arduino_init()
 
   canvas_debug = new LGFX_Sprite(&M5Cardputer.Display);
   canvas_debug->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height());
+  canvas_debug->setTextScroll(true);
 
   canvas = new LGFX_Sprite(&M5Cardputer.Display);
   canvas->createSprite(M5Cardputer.Display.width(), M5Cardputer.Display.height()+1); // shutup
   canvas->setBaseColor(themes[theme].bg);
   canvas->clear(themes[theme].bg);
-  //canvas->setFont(&fonts::FreeMono9pt7b);
-  //canvas->setTextSize(VTSCALING);
+  //canvas->setFont(&fonts::FreeMono24pt7b);
+  canvas->setFont(&fonts::Font0);
+  canvas->setTextSize(VTSCALING);
+
   vtcharsz[0] = canvas->textWidth("M");
   vtcharsz[1] = canvas->fontHeight();
   vtscroll[0] = 2; // allow for status line
@@ -109,6 +113,8 @@ void Arduino_init()
   vtbufp = vtbuf;
   current_col = 1; // x
   current_row = 1; // y
+  vtcurs[0] = 'B'; // G0 set, SI
+  vtcurs[1] = '0'; // G1 set, SO
   vtcurs[2] = themes[theme].fg; // fg
   vtcurs[3] = themes[theme].bg; // bg
   vtflags = 0x0;
@@ -162,7 +168,7 @@ void Arduino_debug(const char *s, char level)
   canvas_debug->pushSprite(0,0);
   yield();
   if(level == 'D')
-    delay(500);
+    delay(2000);
 }
 
 void push_sprites()
@@ -170,13 +176,15 @@ void push_sprites()
   canvas->pushSprite(0, 0);
   if((vtflags & VTFLAG_CURS) == VTFLAG_CURS)
   {
-    canvas_cursor->fillRect(0, 0, vtcharsz[0], vtcharsz[1], 0xffffff);//themes[theme].fg);
+    canvas_cursor->fillRect(0, 0, vtcharsz[0], vtcharsz[1], themes[theme].fg);
     canvas_cursor->pushSprite((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1]);
+    Arduino_debug("cursor on", 'D');
   }
 }
 
 bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
 {
+  char debug[20];
   // parse params out of buf[]
   uint8_t params[4] = {0,0,0,0};
   int i = 0, j = -1, param_len = 0;
@@ -299,6 +307,7 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
         case 'L':
         case 'M':
           // TODO SCROLLING NEXT!!!
+          Arduino_debug("L/M command is TODO", 'D');
           return true;
         case 'm':
           for(i=0; i<param_len; i++)
@@ -458,8 +467,34 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
         case 'T':
           canvas->scroll(0, vtcharsz[1]*params[0]);
           return true;
+        default:
+          sprintf(debug, "Unknown CSI %c", cmd);
+          Arduino_debug(debug, 'D'); //cmd
       }
       break;
+    case '(': // SCS: G0 sets
+      vtcurs[0] = cmd;
+    case ')': // SCS: G1 sets
+      vtcurs[1] = cmd;
+      switch(cmd)
+      {
+        case 'A': // uk
+        case 'B': // ascii
+        case '0': // special
+        case '1': // alt std
+        case '2': // alt special
+          break;
+        default:
+          sprintf(debug, "Unknown SCS set %c", cmd);
+          Arduino_debug(debug, 'D');
+ 
+          break;
+      }
+      break;
+    default:
+      sprintf(debug, "Unknown escape %c", buf[1]);
+      Arduino_debug(debug, 'D'); //buf[1]
+
   }
   return false;
 }
@@ -483,13 +518,11 @@ void Arduino_putchar(uint8_t c)
     vtbufp ++;
     *vtbufp = c;
 
-    if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || *vtbufp == ')' || *vtbufp == '(')
+    if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') 
+        || (c >= '0' && c <= '9' && (vtbuf[1] == ')' || vtbuf[1] == '(')))
     {
       // end of escape, handle it
-      if(handle_vt(vtbuf, c))
-      {
-        //canvas->pushSprite(0,0);
-      }
+      handle_vt(vtbuf, c);
       vtbuf[0] = 0;
     }
   }
@@ -520,17 +553,28 @@ void Arduino_putchar(uint8_t c)
           canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], ' ', FIXRGB(vtcurs[3]), FIXRGB(vtcurs[2]), VTSCALING);
         }
         break;
+      case 14: // shift out
+        vtflags |= VTFLAG_SHIFTOUT;
+        break;
+      case 15: // shift in
+        vtflags &= 0xffff ^ VTFLAG_SHIFTOUT;
+        break;
       default:
         canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], '?', FIXRGB(vtcurs[3]), (uint32_t)0xff0000, VTSCALING);
         break;
     }
   }
-  else if(c >= 127)
+  else 
   {
-    /* bad idea now line editing is in */
-  }
-  else
-  {
+    if(false && c >= 127)
+    {
+      /* bad idea now line editing is in */
+      char debug[100];
+      sprintf(debug, "Got high char %d, G0=%c G1=%c", c, vtcurs[0], vtcurs[1]);
+      Arduino_debug(debug, 'D');
+
+      // TODO: use VTFLAG_SHIFTOUT and G0/G1 to map 'c' into printable utf8
+    }
     uint8_t bg = 3;
     uint8_t fg = 2;
     if((vtflags & VTFLAG_INV) == VTFLAG_INV)
@@ -539,8 +583,11 @@ void Arduino_putchar(uint8_t c)
       bg = 2;
       fg = 3;
     }
+    // ul
     if((vtflags & VTFLAG_UL) == VTFLAG_UL)
       canvas->drawFastHLine((current_col-1)*vtcharsz[0], current_row*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
+
+    // char
     canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
     current_col ++;
 
@@ -704,10 +751,8 @@ void initialize_screen(  )
    h_interpreter = INTERP_MSDOS;
    JTERP = INTERP_UNIX;
 
-   commands = ( char * ) malloc( hist_buf_size * sizeof ( char ) );
+   commands = new char[hist_buf_size];
 
-   if ( commands == NULL )
-      fatal( "initialize_screen(): Couldn't allocate history buffer." );
    BUFFER_SIZE = hist_buf_size;
    space_avail = hist_buf_size - 1;
 
@@ -717,7 +762,34 @@ void initialize_screen(  )
 
 void restart_screen(  )
 {
-   cursor_saved = OFF;
+  zbyte_t high = 1, low = 0;
+
+  cursor_saved = OFF;
+
+  set_byte( H_STANDARD_HIGH, high );
+  set_byte( H_STANDARD_LOW, low );
+  if ( h_type < V4 )
+    set_byte( H_CONFIG, ( get_byte( H_CONFIG ) | CONFIG_WINDOWS ) );
+  else
+  {
+    /* turn stuff on */
+    set_byte( H_CONFIG,
+             ( get_byte( H_CONFIG ) | CONFIG_BOLDFACE | CONFIG_EMPHASIS | CONFIG_FIXED |
+               CONFIG_TIMEDINPUT ) );
+
+    if ( !monochrome )
+      set_byte( H_CONFIG, ( get_byte( H_CONFIG ) | CONFIG_COLOUR ) );
+
+    set_byte( H_BG_DEFAULT_COLOR, default_bg + 2 );
+    set_byte( H_FG_DEFAULT_COLOR, default_fg + 2 );
+
+    /* turn stuff off */
+    set_byte( H_CONFIG, ( get_byte( H_CONFIG ) & ~CONFIG_PICTURES & ~CONFIG_SFX ) );
+  }
+
+  /* Force graphics and sound off as we can't do them */
+  set_word( H_FLAGS, ( get_word( H_FLAGS ) & ~GRAPHICS_FLAG & ~NEW_SOUND_FLAG ) );
+
 }                               /* restart_screen */
 
 void reset_screen(  )
@@ -858,31 +930,46 @@ void restore_cursor_position(  )
 
 void set_attribute( int attribute )
 {
-   static int emph = 0, rev = 0;
+  static int emph = 0, rev = 0;
 
    if ( attribute == NORMAL )
    {
-      // this is the text part of the window
-         attrset(A_NORMAL);
+     // this is the text part of the window
+     if( use_bg_color )
+     {
+       attrset(A_NORMAL);
+     }
+     else if( emph || rev )
+     {
+       emph = 0;
+       rev = 0;
+       attrset(A_NORMAL);
+     }
    }
 
    if ( attribute & REVERSE )
    {
-      // this is the status part of the window
-      attrset(A_REVERSE);
+     // this is the status part of the window
+     attrset(A_REVERSE);
+     rev = 1;
    }
 
    if ( attribute & BOLD )
    {
+     if( use_bg_color )
+       attrset(A_BOLD);
    }
    if ( attribute & EMPHASIS )
    {
+     attrset(A_UNDERLINE);
+     emph = 1;
    }
 
    if ( attribute & FIXED_FONT )
    {
    }
 
+  attrset(current_bg | current_fg);
 }                               /* set_attribute */
 
 static void display_string( char *s )
@@ -1004,40 +1091,56 @@ static void rundown(  )
 }                               /* rundown */
 
 /* Zcolors:
- * BLACK 0   BLUE 4   GREEN 2   CYAN 6   RED 1   MAGENTA 5   BROWN 3   WHITE 7
+ * CURRENT 0   DEFAULT 1   BLACK 0   RED  1   GREEN 2   BROWN 3  BLUE 4  MAGENTA 5   CYAN 6    WHITE 7
  * ANSI Colors (foreground over background):
- * BLACK 30  BLUE 34  GREEN 32  CYAN 36  RED 31  MAGENTA 35  BROWN 33  WHITE 37
- * BLACK 40  BLUE 44  GREEN 42  CYAN 46  RED 41  MAGENTA 45  BROWN 43  WHITE 47
+ * BLACK 30  BLUE 34  GREEN 32  CYAN 36  RED 31  MAGENTA 35  BROWN 33  WHITE 37  DEFAULT 39
+ * BLACK 40  BLUE 44  GREEN 42  CYAN 46  RED 41  MAGENTA 45  BROWN 43  WHITE 47  DEFAULT 49
  */
 void set_colours( zword_t foreground, zword_t background )
 {
-   int fg, bg;
+  int fg, bg;
+  static int bgset = 0;
 
-   int fg_colour_map[] = { F_BLACK, F_BLUE, F_GREEN, F_CYAN, F_RED, F_MAGENTA, F_BROWN, F_WHITE };
-   int bg_colour_map[] = { B_BLACK, B_BLUE, B_GREEN, B_CYAN, B_RED, B_MAGENTA, B_BROWN, B_WHITE };
+  int fg_colour_map[] = { 0, F_DEFAULT, F_BLACK, F_RED, F_GREEN, F_BROWN, F_BLUE, F_MAGENTA, F_CYAN, F_WHITE };
+  int bg_colour_map[] = { 0, B_DEFAULT, B_BLACK, B_RED, B_GREEN, B_BROWN, B_BLUE, B_MAGENTA, B_CYAN, B_WHITE };
 
-   /* Translate from Z-code colour values to natural colour values */
+  /* Translate from Z-code colour values to natural colour values */
 
-   if ( ( ZINT16 ) foreground >= 1 && ( ZINT16 ) foreground <= 9 )
-   {
-      fg = ( foreground == 1 ) ? ( fg_colour_map[default_fg] ) : fg_colour_map[foreground];
-   }
-   if ( ( ZINT16 ) background >= 1 && ( ZINT16 ) background <= 9 )
-   {
-      bg = ( background == 1 ) ? ( bg_colour_map[default_bg] ) : bg_colour_map[background];
-   }
+  if ( ( ZINT16 ) foreground >= 1 && ( ZINT16 ) foreground <= 9 )
+  {
+    fg = fg_colour_map[foreground];
+  }
+  if ( ( ZINT16 ) background >= 1 && ( ZINT16 ) background <= 9 )
+  {
+    bg = bg_colour_map[background];
+  }
 
-   current_fg = ( ZINT16 ) fg;
-   current_bg = ( ZINT16 ) bg;
-   if( monochrome)
-   {
-     attrset ( F_WHITE | B_BLACK );
-   }
-   else
-   {
-     attrset (TEXT_ATTR);    
-   }
+  current_fg = ( ZINT16 ) fg;
+  current_bg = ( ZINT16 ) bg;
 
+  /* Set foreground and background colour */
+  if ( !monochrome )
+  {
+    if ( use_bg_color )
+    {
+      attrset( fg|bg );
+    }
+    else if ( bg != 49 ) // was 40 i.e. black
+    {
+      attrset( fg|bg );
+      bgset = 1;
+    }
+    else if ( bgset )
+    {
+      //printf( "\x1B[0m\x1B[1m" );
+      attrset( F_DEFAULT | B_DEFAULT );
+      bgset = 0;
+    }
+  }
+  else
+  {
+    attrset ( F_WHITE | B_BLACK );
+  }
 }
 
 /*
@@ -1060,32 +1163,44 @@ void set_colours( zword_t foreground, zword_t background )
  *  0xc4 horizontal line (-)
  *  0xcd double horizontal line (=)
  *  all other are corner pieces (+)
+ *
+ *  Arduino Font0 is CP437 "extended ascii"
+ *  FreeXXX fonts have only 7bit chars
  */
 int codes_to_text( int c, char *s )
 {
-   /* German characters need translation */
+  if(c>0xff) return 1;
 
-   if ( c > 154 && c < 224 )
-   {
-      s[0] = zscii2latin1[c - 155];
+  /* some attempt at translation */
 
-      if ( c == 220 )
-      {
-         s[1] = 'e';
-         s[2] = '\0';
-      }
-      else if ( c == 221 )
-      {
-         s[1] = 'E';
-         s[2] = '\0';
-      }
-      else
-      {
-         s[1] = '\0';
-      }
-      return 0;
-   }
-   return 1;
+  if ( c > 154 && c < 224 )
+  {
+    s[0] = zscii2cp437[c - 155];
+
+    switch(c)
+    {
+      case 220: // oe
+        s[1] = 'e';
+        s[2] = '\0';
+        break;
+      case 221: // OE
+        s[1] = 'E';
+        s[2] = '\0';
+        break;
+      case 215: // th
+      case 216:
+      case 217: // Th
+      case 218:
+        s[1] = 'h';
+        s[2] = '\0';
+        break;
+      default:
+        s[1] = '\0';
+        break;
+    }
+    return 0;
+  }
+  return 1;
 }                               /* codes_to_text */
 
 /*
@@ -1110,8 +1225,7 @@ int display_command( char *buffer )
    int counter, loop;
 
    move_cursor( row, head_col );
-   //XXX tputs (CE, 1, outc);  /* fix scoll bug w/ command history */
-   clrtoeol();
+   clrtoeol(); /* fix scoll bug w/ command history */
 
    /* ptr1 = end_ptr when the player has selected beyond any previously
     * saved command.

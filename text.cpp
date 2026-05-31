@@ -543,7 +543,15 @@ zbyte_t translate_to_zscii(int c)
    {
       if( h_unicode_table !=0 ) 
       {
-         fprintf(stderr,"[[ Unicode support not enabled yet. ]]");
+         int len = get_byte( h_unicode_table );
+         for (i = 0; i < len; i++)
+         {
+            if ( c == ( get_word( h_unicode_table + 2 * i + 1 ) ) )
+            {
+               return (0x9b + i);
+            }
+         }
+         //fprintf(stderr,"[[ Unicode support not enabled yet. ]]");
       }
       else 
       {

@@ -101,9 +101,7 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
 {
   Arduino_debug("displayA2ZScreen()", 'I');
   attrset(A_NORMAL);
-  Arduino_debug("attrset ok");
   clear();
-  Arduino_debug("erase ok");
   // top line
   attrset(A_REVERSE);
   int col;

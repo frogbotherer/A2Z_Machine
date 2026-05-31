@@ -310,6 +310,8 @@ zheader_t;
 #define H_MAX_CHAR_HEIGHT 39
 #define H_FILLER1 40
 
+#define H_BG_DEFAULT_COLOR 44
+#define H_FG_DEFAULT_COLOR 45
 #define H_FUNCTION_KEYS_OFFSET 46
 #define H_FILLER2 48
 
@@ -536,6 +538,7 @@ extern int hist_buf_size;
 extern char bigscreen;
 
 extern unsigned char zscii2latin1[69];
+extern unsigned char zscii2cp437[69];
 
 #ifdef STRICTZ
 
