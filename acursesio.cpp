@@ -80,9 +80,10 @@ static int read_char( int timeout );
 #define VTFLAG_SHIFTOUT 0x10
 
 #define VTSCALING 1.0
-#define KEYWAIT 180
+#define KEYWAIT 300
 LGFX_Sprite *canvas, *canvas_cursor, *canvas_debug;
 uint32_t lastKeyTime;
+char lastKeyVal;
 static uint8_t vtbuf[16]; // for ansi escapes
 static uint8_t *vtbufp;
 static uint32_t vtcurs[4];
@@ -119,6 +120,7 @@ void Arduino_init()
   vtcurs[3] = themes[theme].bg; // bg
   vtflags = 0x0;
   lastKeyTime = 0;
+  lastKeyVal = 0;
 
   // initialise scroll region with status line
   canvas->setScrollRect(0, (vtscroll[0]-1)*vtcharsz[1], canvas->width(), (vtscroll[1]-vtscroll[0]+1)*vtcharsz[1], themes[theme].bg);
@@ -659,12 +661,13 @@ char Arduino_getchar()
   for(;;)
   {
     M5Cardputer.update(); // must be in AND out of loop
-    while((!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed())
-      || (lastKeyTime+KEYWAIT) > millis()) {
+    while((!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed())) {
       yield();
       M5Cardputer.update();
     };
     char c = kstochar(M5Cardputer.Keyboard.keysState());
+    if(lastKeyVal == c && (lastKeyTime+KEYWAIT) > millis()) continue;
+    lastKeyVal = c;
     lastKeyTime = millis();
     if(c > 0)
       return c;
@@ -678,18 +681,19 @@ int inc( uint32_t timeout = 0 )
   for(;;)
   {
     M5Cardputer.update();
-    while((lastKeyTime+KEYWAIT) > millis()
-      || (!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()
+    while((!M5Cardputer.Keyboard.isChange() && !M5Cardputer.Keyboard.isPressed()
       && ((timeout == 0) || (timeout > 0 && (timer + timeout*100 > millis())))))
     {
       yield();
       M5Cardputer.update();
     };
-    lastKeyTime = millis();
     if(timeout > 0 && ((timer + timeout*100) <= millis()))
       return -1;
 
-    uint8_t c = kstochar(M5Cardputer.Keyboard.keysState());
+    char c = kstochar(M5Cardputer.Keyboard.keysState());
+    if(lastKeyVal == c && (lastKeyTime+KEYWAIT) > millis()) continue;
+    lastKeyVal = c;
+    lastKeyTime = millis();
 
     if(c == '\r' || c == '\n')
     {
@@ -931,37 +935,37 @@ void restore_cursor_position(  )
 void set_attribute( int attribute )
 {
   static int emph = 0, rev = 0;
-
+  int a = 0;
    if ( attribute == NORMAL )
    {
      // this is the text part of the window
      if( use_bg_color )
      {
-       attrset(A_NORMAL);
+       a |= A_NORMAL;
      }
      else if( emph || rev )
      {
        emph = 0;
        rev = 0;
-       attrset(A_NORMAL);
+       a |= A_NORMAL;
      }
    }
 
    if ( attribute & REVERSE )
    {
      // this is the status part of the window
-     attrset(A_REVERSE);
+     a |= A_REVERSE;
      rev = 1;
    }
 
    if ( attribute & BOLD )
    {
      if( use_bg_color )
-       attrset(A_BOLD);
+       a |= A_BOLD;
    }
    if ( attribute & EMPHASIS )
    {
-     attrset(A_UNDERLINE);
+     a |= A_UNDERLINE;
      emph = 1;
    }
 
@@ -969,7 +973,7 @@ void set_attribute( int attribute )
    {
    }
 
-  attrset(current_bg | current_fg);
+  attrset(a | current_bg | current_fg);
 }                               /* set_attribute */
 
 static void display_string( char *s )
@@ -1119,6 +1123,7 @@ void set_colours( zword_t foreground, zword_t background )
   current_bg = ( ZINT16 ) bg;
 
   /* Set foreground and background colour */
+  // TODO this overwrites other flags like bold/inverse, and probably shouldn't
   if ( !monochrome )
   {
     if ( use_bg_color )
