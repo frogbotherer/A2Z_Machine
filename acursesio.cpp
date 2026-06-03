@@ -127,6 +127,7 @@ void Arduino_init()
 
   // command history buffer
   hist_buf_size = 4096;
+  commands = new char[hist_buf_size];
 
   // cursor rendering
   canvas_cursor = new LGFX_Sprite(&M5Cardputer.Display);
@@ -143,6 +144,8 @@ void Arduino_deinit()
   delete canvas;
   delete canvas_cursor;
   delete canvas_debug;
+
+  delete commands;
 }
 
 void Arduino_debug(const char *s, char level)
@@ -755,7 +758,7 @@ void initialize_screen(  )
    h_interpreter = INTERP_MSDOS;
    JTERP = INTERP_UNIX;
 
-   commands = new char[hist_buf_size];
+   //commands = new char[hist_buf_size];
 
    BUFFER_SIZE = hist_buf_size;
    space_avail = hist_buf_size - 1;
@@ -1388,7 +1391,7 @@ int input_line( int buflen, char *buffer, int timeout, int *read_size )
    int init_char_pos, curr_char_pos;
    int loop, tail_col;
    int keyfunc = 0;
-   int start_col = 2; // allows for the prompt
+   int start_col;
 
    /*
     * init_char_pos : the initial cursor location
@@ -1399,6 +1402,7 @@ int input_line( int buflen, char *buffer, int timeout, int *read_size )
     */
 
    get_cursor_position( &row, &col );
+   start_col = col - *read_size;
    head_col = start_col;
    tail_col = start_col + *read_size;
 
