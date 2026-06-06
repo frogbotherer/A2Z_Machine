@@ -590,17 +590,16 @@ void Arduino_putchar(uint8_t c)
       bg = 2;
       fg = 3;
     }
-    // ul
-    if((vtflags & VTFLAG_UL) == VTFLAG_UL)
-      canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], '_', FIXRGB(vtcurs[fg]), FIXRGB(vtcurs[fg]), VTSCALING);
-      //canvas->drawFastHLine((current_col-1)*vtcharsz[0], current_row*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
-
     // char
     canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
 
     // bold (NB. if bg==fg then it doesn't draw a background box)
     if((vtflags & VTFLAG_BOLD) == VTFLAG_BOLD)
       canvas->drawChar(1+(current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[fg]), FIXRGB(vtcurs[fg]), VTSCALING);
+
+    // ul
+    if((vtflags & VTFLAG_UL) == VTFLAG_UL)
+      canvas->drawFastHLine((current_col-1)*vtcharsz[0], current_row*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
 
     current_col ++;
   }
