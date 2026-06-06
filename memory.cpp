@@ -80,6 +80,13 @@ void load_cache( void )
    {
       fatal( "load_cache(): Insufficient memory to play game" );
    }
+   style = ( char * ) malloc( screen_cols + 1 );
+   if ( style == NULL )
+   {
+      fatal( "load_cache(): Insufficient memory to play game" );
+   }
+   for(int i=0; i<=screen_cols; i++)
+     style[i] = 0;
    status_line = ( char * ) malloc( screen_cols + 1 );
    if ( status_line == NULL )
    {
@@ -166,6 +173,7 @@ void unload_cache( void )
    /* Free output buffer, status line and data memory */
 
    free( line );
+   free( style );
    free( status_line );
    free( datap );
    free( undo_datap );

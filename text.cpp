@@ -637,6 +637,8 @@ void write_char( int c )
                if ( right_len > 0 )
                {
                   memmove( line, cp, right_len );
+                  memmove( style, &style[cp - line], right_len + 1 );
+
                   line_pos = right_len;
                }
             }
@@ -665,6 +667,7 @@ void write_char( int c )
             if ( right_len > 0 )
             {
                memmove( line, cp, right_len );
+               memmove( style, &style[cp - line], right_len + 1 );
                line_pos = right_len;
             }
          }
@@ -697,6 +700,14 @@ void z_set_text_style( zword_t mode )
 {
    if ( mode >= MIN_ATTRIBUTE  && mode <= MAX_ATTRIBUTE )
    {
+      if ( !redirect_depth && formatting == ON && screen_window == TEXT_WINDOW )
+      {
+         if ( mode == NORMAL)
+            style[line_pos] = 0x80;
+         else
+            style[line_pos] |= mode;
+        return;
+      }
       set_attribute( mode );
    }
    else
@@ -736,7 +747,19 @@ void flush_buffer( int flag )
    flush_script(  );            
 
    /* Send the line buffer to the screen */
-   output_string( line );
+   for ( int i = 0; i <= line_pos; i++ )
+   {
+      if ( style[i] & 0x80 )
+         set_attribute( NORMAL );
+      if ( style[i] & 0x7f )
+         set_attribute( style[i] & 0x7f );
+      style[i] = 0;
+
+      if ( !line[i] )
+         break;
+
+      output_char( line[i] );
+   }
 
    /* Reset the character count only if a carriage return is expected */
    if ( flag == TRUE )

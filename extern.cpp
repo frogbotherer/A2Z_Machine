@@ -152,6 +152,7 @@ int status_pos = 0;
 /* Dynamic buffer data */
 
 char *line = NULL;
+char *style = NULL;
 char *status_line = NULL;
 
 /* Character translation tables */

@@ -330,9 +330,11 @@ bool handle_vt(uint8_t (&buf)[16], uint8_t cmd)
               case 21:
                 vtflags &= (0xffff ^ VTFLAG_BOLD);
                 break;
+              case 3:
               case 4:
                 vtflags |= VTFLAG_UL;
                 break;
+              case 23:
               case 24:
                 vtflags &= (0xffff ^ VTFLAG_UL);
                 break;
@@ -590,12 +592,17 @@ void Arduino_putchar(uint8_t c)
     }
     // ul
     if((vtflags & VTFLAG_UL) == VTFLAG_UL)
-      canvas->drawFastHLine((current_col-1)*vtcharsz[0], current_row*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
+      canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], '_', FIXRGB(vtcurs[fg]), FIXRGB(vtcurs[fg]), VTSCALING);
+      //canvas->drawFastHLine((current_col-1)*vtcharsz[0], current_row*vtcharsz[1]-1, vtcharsz[0], FIXRGB(vtcurs[fg]));
 
     // char
     canvas->drawChar((current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[bg]), FIXRGB(vtcurs[fg]), VTSCALING);
-    current_col ++;
 
+    // bold (NB. if bg==fg then it doesn't draw a background box)
+    if((vtflags & VTFLAG_BOLD) == VTFLAG_BOLD)
+      canvas->drawChar(1+(current_col-1)*vtcharsz[0], (current_row-1)*vtcharsz[1], c, FIXRGB(vtcurs[fg]), FIXRGB(vtcurs[fg]), VTSCALING);
+
+    current_col ++;
   }
 }
 
@@ -937,45 +944,31 @@ void restore_cursor_position(  )
 
 void set_attribute( int attribute )
 {
-  static int emph = 0, rev = 0;
   int a = 0;
-   if ( attribute == NORMAL )
-   {
-     // this is the text part of the window
-     if( use_bg_color )
-     {
-       a |= A_NORMAL;
-     }
-     else if( emph || rev )
-     {
-       emph = 0;
-       rev = 0;
-       a |= A_NORMAL;
-     }
-   }
+  if ( attribute == NORMAL )
+  {
+    a = A_NORMAL;
+  }
+  else
+  {
+    if ( attribute & REVERSE )
+    {
+      a |= A_REVERSE;
+    }
 
-   if ( attribute & REVERSE )
-   {
-     // this is the status part of the window
-     a |= A_REVERSE;
-     rev = 1;
-   }
+    if ( attribute & BOLD )
+    {
+      a |= A_BOLD;
+    }
+    if ( attribute & EMPHASIS )
+    {
+      a |= A_UNDERLINE;
+    }
 
-   if ( attribute & BOLD )
-   {
-     if( use_bg_color )
-       a |= A_BOLD;
-   }
-   if ( attribute & EMPHASIS )
-   {
-     a |= A_UNDERLINE;
-     emph = 1;
-   }
-
-   if ( attribute & FIXED_FONT )
-   {
-   }
-
+    if ( attribute & FIXED_FONT )
+    {
+    }
+  }
   attrset(a | current_bg | current_fg);
 }                               /* set_attribute */
 
