@@ -416,7 +416,7 @@ void setup()
   init_sd_dirs();
 
   M5Cardputer.Display.setRotation(1);
-  M5Cardputer.Display.setTextFont(&fonts::FreeMono9pt7b);
+  M5Cardputer.Display.setTextFont(&fonts::Font0);
   M5Cardputer.Display.setColorDepth(16);
 
   Arduino_init();
