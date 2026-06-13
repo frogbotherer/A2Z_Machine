@@ -823,6 +823,8 @@ void z_push( zword_t );
 #define STATUS_ATTR (F_WHITE | B_BLUE | A_BOLD)
 #define TEXT_ATTR (F_GREEN | B_BLACK)
 
+extern const uint8_t games_ZORK1_DAT[92160];
+
 typedef struct ztheme
 {
   const char *tname;

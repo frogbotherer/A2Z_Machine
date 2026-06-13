@@ -10,7 +10,7 @@
 #include <M5Cardputer.h>
 #include "ztypes.h"
 
-#define A2Z_VERSION "3.1"
+#define A2Z_VERSION "3.1.2"
 
 #define MAXFILELIST 50 // max. # of game files to display
 char **storyfilelist;
@@ -97,7 +97,7 @@ char **getDirectory(File &dir)
   return dirlist;
 }
 
-void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
+void displayA2ZScreen(char filenames[MAXFILELIST][15], int count, int storynum)
 {
   Arduino_debug("displayA2ZScreen()", 'I');
   attrset(A_NORMAL);
@@ -111,7 +111,7 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
     addch (' ');
   }
   //                        1234567891123456789212           345             678931234567894
-  mvaddstr_P (0, 1, String("A2Z Machine  -  v" + String(A2Z_VERSION) + "  -  DanTheGeek.com").c_str());
+  mvaddstr_P (0, 1, String("A2Z Machine  - v" + String(A2Z_VERSION) + " -  DanTheGeek.com").c_str());
   attrset(A_NORMAL);
   yield();
   mvaddstr_P ( 2, 1, String("Theme: " + String(themes[theme].tname)).c_str());
@@ -119,9 +119,13 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   mvaddstr_P ( 3, 1, "Select a game to play:");
   yield();
   //                                 1234567891123456789212345678931234567894
-  mvaddstr_P ( DEFAULT_ROWS - 2, 1, "SELECT: <cursor>+<enter> | THEME: t");
+  mvaddstr_P ( DEFAULT_ROWS - 2, 0, "SELECT: <cursor>+<enter> | THEME: t");
   yield();
-  mvaddstr_P ( DEFAULT_ROWS - 1, 1, "See: https://DanTheGeek.com/a2zmachine");
+  //mvaddstr_P ( DEFAULT_ROWS - 1, 1, "See: https://DanTheGeek.com/a2zmachine");
+  mvaddstr_P( DEFAULT_ROWS - 1, 0,  "SEE: " );
+  attrset(A_UNDERLINE);
+  mvaddstr_P( DEFAULT_ROWS - 1, 5,       "github.com/frogbotherer/A2Z_Machine" );
+  attrset(A_NORMAL);
   yield();
   Arduino_debug("drawing stories");
   // show stories
@@ -130,21 +134,21 @@ void displayA2ZScreen(char filenames[MAXFILELIST][20], int count, int storynum)
   {
     if(i == storynum)
       attrset(A_REVERSE);      
-    int x = i % 2;
-    int y = i / 2;
-    mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[i]) + String(" ")).c_str() );
+    int x = i % 3;
+    int y = i / 3;
+    mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[i]) + String(" ")).c_str() );
     yield();
     if(i == storynum)
       attrset(A_NORMAL);
   }
 
-  move(7+(count/2),1);
+  move(7+(count/3),1);
   Arduino_debug("done");
 }
 
 static bool showA2ZScreen(int &storynum)
 {
-  char filenames[MAXFILELIST][20];
+  char filenames[MAXFILELIST][15];
 
   if ( initscr(  ) )
   {
@@ -178,7 +182,7 @@ static bool showA2ZScreen(int &storynum)
     char shortname[15];
     char paddedname[15];
     int i;
-    for(i = 0; i < 14; i++)
+    for(i = 0; i < 11; i++)
     {
       yield();
       if(storyfilelist[count][i] == '.')
@@ -192,7 +196,7 @@ static bool showA2ZScreen(int &storynum)
       }
     }
     shortname[i] = '\0';
-    for(i = 0; i < 14; i++)
+    for(i = 0; i < 11; i++)
     {
       yield();
       if(strlen(shortname) <= i)
@@ -200,7 +204,7 @@ static bool showA2ZScreen(int &storynum)
       else
         paddedname[i] = shortname[i];
    }
-    paddedname[14] = '\0';
+    paddedname[11] = '\0';
     strcpy(filenames[count], paddedname);
     count++;
   }
@@ -210,82 +214,87 @@ static bool showA2ZScreen(int &storynum)
   if(count == 0)
   {
     Arduino_debug("No stories found", 'E');
-    Arduino_debug("Put some in /atoz/games", 'E');
-    Arduino_debug("Then reset or press a key", 'E');
-    Arduino_getchar();
+    Arduino_debug("I will put one in /atoz/games", 'E');
+
+    File f = SD.open(String(GAMEPATH) + String("/ZORK1.DAT"), FILE_WRITE);
+    f.write(games_ZORK1_DAT, 92160);
+    f.close();
+    //Arduino_debug("Then reset or press a key", 'E');
+    //Arduino_getchar();
+    
     return false;
   }
 
   while(1)
   {
     int keystroke = Arduino_getchar();
-    move(7+(count/2),1);
+    move(7+(count/3),1);
     yield();
     switch(keystroke)
     {
       case '/':
-        x = storynum % 2;
-        y = storynum / 2;
+        x = storynum % 3;
+        y = storynum / 3;
         attrset(A_NORMAL);
-        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         storynum = (storynum+1)%count;
-        x = storynum % 2;
-        y = storynum / 2;
+        x = storynum % 3;
+        y = storynum / 3;
         attrset(A_REVERSE);      
-        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         attrset(A_NORMAL);
-        move(7+(count/2),1);
+        move(7+(count/3),1);
         break;
       case ',':
-        x = storynum % 2;
-        y = storynum / 2;
+        x = storynum % 3;
+        y = storynum / 3;
         attrset(A_NORMAL);
-        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         storynum = (storynum-1)%count;
         if(storynum < 0)
           storynum = count - 1;
-        x = storynum % 2;
-        y = storynum / 2;
+        x = storynum % 3;
+        y = storynum / 3;
         attrset(A_REVERSE);      
-        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         attrset(A_NORMAL);
-        move(7+(count/2),1);
+        move(7+(count/3),1);
         break;
       case ';':
-        x = storynum % 2;
-        y = storynum / 2;
+        x = storynum % 3;
+        y = storynum / 3;
         attrset(A_NORMAL);
-        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-        if(storynum - 2 >= 0)
+        mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        if(storynum - 3 >= 0)
         {
-          storynum = (storynum-2)%count;
+          storynum = (storynum-3)%count;
         }
         else
         {
-          storynum = count - (count)%2 + (storynum-1)%count;
+          storynum = count - (count)%3 + (storynum-1)%count;
           if(storynum >= count)
-            storynum -= 2;
+            storynum -= 3;
         }
-        x = storynum % 2;
-        y = storynum / 2;
+        x = storynum % 3;
+        y = storynum / 3;
         attrset(A_REVERSE);
-        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         attrset(A_NORMAL);
-        move(7+(count/2),1);
+        move(7+(count/3),1);
         break;
       case '.':
-        x = storynum % 2;
-        y = storynum / 2;
+        x = storynum % 3;
+        y = storynum / 3;
         attrset(A_NORMAL);
-        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
-        if(storynum + 2 < count)
-          storynum = (storynum+2)%count;
-        x = storynum % 2;
-        y = storynum / 2;
+        mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        if(storynum + 3 < count)
+          storynum = (storynum+3)%count;
+        x = storynum % 3;
+        y = storynum / 3;
         attrset(A_REVERSE);
-        mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+        mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
         attrset(A_NORMAL);
-        move(7+(count/2),1);
+        move(7+(count/3),1);
         break;
       case 't': // change theme
         theme = (theme + 1 ) %themecount;
@@ -303,17 +312,17 @@ static bool showA2ZScreen(int &storynum)
           {
             if(tolower(*filenames[(storynum+i)%count]) == tolower(keystroke))
             {
-              x = storynum % 2;
-              y = storynum / 2;
+              x = storynum % 3;
+              y = storynum / 3;
               attrset(A_NORMAL);
-              mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+              mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
               storynum = (storynum+i)%count;
-              x = storynum % 2;
-              y = storynum / 2;
+              x = storynum % 3;
+              y = storynum / 3;
               attrset(A_REVERSE);
-              mvaddstr_P (5+y,x*16,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
+              mvaddstr_P (5+y,x*13,String(String(" ") + String(filenames[storynum]) + String(" ")).c_str());
               attrset(A_NORMAL);
-              move(7+(count/2),1);
+              move(7+(count/3),1);
               break;
             }
           }
